@@ -9,10 +9,10 @@ from urllib.parse import urlparse
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from urllib.parse import urlparse, parse_qs
-from utils.config import SUSPICIOUS_TLDS, SHORTENERS, SUBDOMAIN_THRESHOLD, SUSPICIOUS_URL_KEYWORDS, TRIVIAL_SUBDOMAINS
-from utils.url_helpers import *
-from utils.api_clients import check_virustotal
-from heuristics.headers import domain_age_bulk
+from phishsage.utils.config import SUSPICIOUS_TLDS, SHORTENERS, SUBDOMAIN_THRESHOLD, SUSPICIOUS_URL_KEYWORDS, TRIVIAL_SUBDOMAINS
+from phishsage.utils.url_helpers import *
+from phishsage.utils.api_clients import check_virustotal
+from phishsage.heuristics.headers import domain_age_bulk
 
 
 

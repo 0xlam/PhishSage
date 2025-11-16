@@ -1,15 +1,15 @@
 from dataclasses import dataclass
 from typing import Any
 
-from utils.header_helpers import (
+from phishsage.utils.header_helpers import (
     normalize_header_value,
     get_domain,
     extract_email,
     generate_email_id,
     extract_display_name,
 )
-from utils.dirty_parser import dirty_extract_email
-from utils.ip_analysis import extract_sender_ip
+from phishsage.utils.dirty_parser import dirty_extract_email
+from phishsage.utils.ip_analysis import extract_sender_ip
 
 
 #------------------------------------------

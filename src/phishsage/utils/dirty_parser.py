@@ -1,7 +1,7 @@
 import re
 from email.header import decode_header, make_header
 from email.utils import parseaddr
-from utils.header_helpers import validate_and_normalize_email
+from phishsage.utils.header_helpers import validate_and_normalize_email
 
 _ADDR_RE = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+")
 

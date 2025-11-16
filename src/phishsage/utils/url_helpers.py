@@ -5,7 +5,7 @@ import tldextract
 from collections import Counter
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-from .config import MAX_REDIRECTS
+from phishsage.utils.config import MAX_REDIRECTS
 
 
 def normalize_url(url):

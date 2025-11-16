@@ -1,11 +1,11 @@
 import json
 import mailparser
-from utils.cli_args import get_parser
-from utils.header_parser import extract_mail_headers
-from utils.attachments import process_attachments
-from utils.url_helpers import get_redirect_chain,extract_links
-from heuristics.links import run_link_heuristics, scan_with_virustotal
-from heuristics.headers import run_headers_heuristics
+from phishsage.utils.cli_args import get_parser
+from phishsage.utils.header_parser import extract_mail_headers
+from phishsage.utils.attachments import process_attachments
+from phishsage.utils.url_helpers import get_redirect_chain,extract_links
+from phishsage.heuristics.links import run_link_heuristics, scan_with_virustotal
+from phishsage.heuristics.headers import run_headers_heuristics
 
 
 def handle_headers(args, headers):

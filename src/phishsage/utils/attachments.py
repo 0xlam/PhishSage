@@ -3,7 +3,7 @@ import re
 import base64
 import hashlib
 import magic
-from .api_clients import check_virustotal
+from phishsage.utils.api_clients import check_virustotal
 
 
 def safe_filename(name):
