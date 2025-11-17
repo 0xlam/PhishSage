@@ -79,13 +79,13 @@ PhishSage provides a command-line interface with three main modes: `headers`, `a
 ### Main Help
 
 ```bash
-python3 main.py -h
+phishsage -h
 ```
 
 **Output:**
 
 ```
-usage: main.py [-h] {headers,attachment,links} ...
+usage: phishsage [-h] {headers,attachment,links} ...
 
 PhishSage
 
@@ -104,13 +104,13 @@ options:
 ### Header Analysis
 
 ```bash
-python3 main.py headers -h
+phishsage headers -h
 ```
 
 **Options:**
 
 ```
-usage: main.py headers [-h] -f FILE [--heuristics]
+usage: phishsage headers [-h] -f FILE [--heuristics]
 
 options:
   -h, --help       show this help message and exit
@@ -123,13 +123,13 @@ options:
 ### Attachment Processing
 
 ```bash
-python3 main.py attachment -h
+phishsage attachment -h
 ```
 
 **Options:**
 
 ```
-usage: main.py attachment [-h] -f FILE [--list] [--extract DIR] [--hash] [--scan]
+usage: phishsage attachment [-h] -f FILE [--list] [--extract DIR] [--hash] [--scan]
 
 options:
   -h, --help       show this help message and exit
@@ -145,13 +145,13 @@ options:
 ### Link / URL Analysis
 
 ```bash
-python3 main.py links -h
+phishsage links -h
 ```
 
 **Options:**
 
 ```
-usage: main.py links [-h] -f FILE [--extract] [--scan] [--check-redirects | --heuristics] [--include-redirects]
+usage: phishsage links [-h] -f FILE [--extract] [--scan] [--check-redirects | --heuristics] [--include-redirects]
 
 options:
   -h, --help           show this help message and exit
@@ -182,8 +182,9 @@ source venv/bin/activate
 # Windows (PowerShell)
 venv\Scripts\Activate.ps1
 
-# 3. Install dependencies
-pip install -r requirements.txt
+## 3. Install the Package in Editable Mode
+pip install -e .
+
 
 # 4. (Optional) Set VirusTotal API key
 export VIRUSTOTAL_API_KEY="your_virustotal_api_key"     # Linux/macOS
@@ -196,7 +197,7 @@ export VIRUSTOTAL_API_KEY="your_virustotal_api_key"     # Linux/macOS
 
 ## 5. Configuration
 
-PhishSage stores configuration values in the project config (`config.py`) or environment variables. The main items you may safely adjust are:
+PhishSage stores configuration values in the project config (`config.toml`) or environment variables. The main items you may safely adjust are:
 
   * `VIRUSTOTAL_API_KEY` — API key for VirusTotal scans.
   * `MAX_REDIRECTS` — Maximum number of redirects to follow when checking redirect chains.
@@ -229,7 +230,7 @@ PhishSage stores configuration values in the project config (`config.py`) or env
 Contributions to PhishSage are welcome! You can help improve the project by:
 
 * Adding or refining heuristic checks for headers, attachments, and links.
-* Expanding the lists in `config.py`, such as `SUSPICIOUS_URL_KEYWORDS`, `SUSPICIOUS_TLDS`, `SHORTENERS`, and `FREE_EMAIL_DOMAINS`.
+* Expanding the lists in `config.toml`, such as `SUSPICIOUS_URL_KEYWORDS`, `SUSPICIOUS_TLDS`, `SHORTENERS`, and `FREE_EMAIL_DOMAINS`.
 * Improving parsing, normalization, or output handling.
 * Reporting bugs or suggesting enhancements.
 
