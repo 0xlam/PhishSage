@@ -1,6 +1,6 @@
 import base64
 import requests
-from phishsage.utils.config import  VIRUSTOTAL_API_KEY
+from phishsage.config.loader import  VIRUSTOTAL_API_KEY
 
 
 session = requests.Session()

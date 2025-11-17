@@ -3,7 +3,7 @@ import whois
 import dns.resolver
 from dateutil import parser
 from datetime import datetime, timedelta, timezone
-from phishsage.utils.config import FREE_EMAIL_DOMAINS, DATE_RECEIVED_DRIFT_MINUTES, THRESHOLD_YOUNG, THRESHOLD_EXPIRING
+from phishsage.config.loader import FREE_EMAIL_DOMAINS, DATE_RECEIVED_DRIFT_MINUTES, THRESHOLD_YOUNG, THRESHOLD_EXPIRING
 from phishsage.utils.header_helpers import is_domain_match, earliest_received_date
 
 
