@@ -3,6 +3,7 @@ import re
 import base64
 import hashlib
 import magic
+import mimetypes
 from phishsage.utils.api_clients import check_virustotal
 
 
