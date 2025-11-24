@@ -110,12 +110,13 @@ phishsage headers -h
 **Options:**
 
 ```
-usage: phishsage headers [-h] -f FILE [--heuristics]
+usage: phishsage headers [-h] -f FILE [--heuristics] [--json]
 
 options:
   -h, --help       show this help message and exit
   -f, --file FILE  Email file to analyze (.eml)
   --heuristics     Run heuristic header analysis for anomalies
+  --json           Output results in raw JSON format
 ```
 
 ---
@@ -129,15 +130,16 @@ phishsage attachment -h
 **Options:**
 
 ```
-usage: phishsage attachment [-h] -f FILE [--list] [--extract DIR] [--hash] [--scan]
+usage: phishsage attachment [-h] -f FILE [--list] [--extract DIR] [--hash] [--scan] [--json]
 
 options:
   -h, --help       show this help message and exit
-  -f, --file FILE  Email file to process
+  -f, --file FILE  Email file to analyze (.eml)
   --list           List attachments only
   --extract DIR    Extract to directory
   --hash           Hash each file
   --scan           Check VirusTotal
+  --json           Output results in raw JSON format
 ```
 
 ---
@@ -151,16 +153,17 @@ phishsage links -h
 **Options:**
 
 ```
-usage: phishsage links [-h] -f FILE [--extract] [--scan] [--check-redirects | --heuristics] [--include-redirects]
+usage: phishsage links [-h] -f FILE [--extract] [--scan]  [--check-redirects | --heuristics] [--include-redirects] [--json]
 
 options:
   -h, --help           show this help message and exit
-  -f, --file FILE      Email file to analyze
+  -f, --file FILE      Email file to analyze (.eml)
   --extract            Extract all URLs found in the email body or headers
   --scan               Submit extracted links to VirusTotal for analysis
   --check-redirects    Follow and display final redirect destinations for each URL
   --heuristics         Run phishing heuristics on extracted URLs
   --include-redirects  Include redirect chain when running heuristics (ignored if --heuristics not used)
+  --json               Output results in raw JSON format
 ```
 
 
