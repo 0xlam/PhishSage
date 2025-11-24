@@ -38,7 +38,6 @@ def get_parser():
         help='Analyze links in email content')
     link_parser.add_argument('--extract', action='store_true', help='Extract all URLs found in the email body or headers')
     link_parser.add_argument('--scan', action='store_true', help='Submit extracted links to VirusTotal for analysis')
-    link_parser.add_argument( "--json", action="store_true", help='Output results in raw JSON format')
     
 
     mode_group = link_parser.add_mutually_exclusive_group()
@@ -49,6 +48,7 @@ def get_parser():
 
     link_parser.add_argument('--include-redirects', action='store_true',
         help='Include redirect chain when running heuristics (ignored if --heuristics not used)')
+    link_parser.add_argument( "--json", action="store_true", help='Output results in raw JSON format')
 
     
     
