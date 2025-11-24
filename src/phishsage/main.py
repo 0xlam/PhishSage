@@ -16,7 +16,7 @@ def handle_headers(args, headers):
         if args.json:
             print(json.dumps(heuristics_result, indent=None, sort_keys=False))
         else:
-        	print("\n📬 Header Heuristics Analysis\n" + "=" * 60)
+            print("\n📬 Header Heuristics Analysis\n" + "=" * 60)
             print(json.dumps(heuristics_result, indent=2, sort_keys=False))
         print()
 
@@ -223,7 +223,7 @@ def handle_links(args, mail):
         if args.json:
             json_output["link_heuristics"] = heuristics
         else:
-        	print("\n🎯 Phishing Heuristics (Links)\n" + "=" * 60)
+            print("\n🎯 Phishing Heuristics (Links)\n" + "=" * 60)
             print(json.dumps(heuristics, indent=2, sort_keys=False))
             print()
 
