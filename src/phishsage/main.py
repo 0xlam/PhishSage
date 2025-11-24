@@ -8,164 +8,228 @@ from phishsage.heuristics.links import run_link_heuristics, scan_with_virustotal
 from phishsage.heuristics.headers import run_headers_heuristics
 
 
+
 def handle_headers(args, headers):
     if args.heuristics:
-        print("\n📬 Header Heuristics Analysis\n" + "=" * 60)
         heuristics_result = run_headers_heuristics(headers)
-        
-        # Pretty-print JSON for readability
-        print(json.dumps(heuristics_result, indent=2, sort_keys=False))
+
+        if args.json:
+            print(json.dumps(heuristics_result, indent=None, sort_keys=False))
+        else:
+        	print("\n📬 Header Heuristics Analysis\n" + "=" * 60)
+            print(json.dumps(heuristics_result, indent=2, sort_keys=False))
+        print()
 
 
 def handle_attachments(args, mail):
+   
+    json_output = {}
 
+    # === 1. List attachments ===
     if args.list:
-        print("\n📎 Attachment Listing\n" + "=" * 60)
         results = process_attachments(mail, "list")
-    
-        if not results:
-            print("⚠️  No attachments found.\n")
+
+        if args.json:
+            json_output["listing"] = results or {}
         else:
-            for filename, metadata in results.items():
-                print(f"  - {filename} ({metadata.get('size_human', 'N/A')}) [{metadata.get('mime_type', 'N/A')}]")
-        print()
-       
+            print("\n📎 Attachment Listing\n" + "=" * 60)
+            if not results:
+                print("⚠️  No attachments found.\n")
+            else:
+                for filename, metadata in results.items():
+                    print(f"  - {filename} ({metadata.get('size_human', 'N/A')}) "
+                          f"[{metadata.get('mime_type', 'N/A')}]")
+            print()
+
+    # === 2. Extract attachments ===
     if args.extract:
-        print(f"\n📂 Extracting Attachments → {args.extract}\n" + "=" * 60)
         results = process_attachments(mail, action="extract", save_dir=args.extract)
 
-        if not results:
-            print("⚠️  No attachments found.\n")
+        if args.json:
+            json_output["extraction"] = results or {}
         else:
-            for filename, path in results.items():
-                if path:
-                    print(f"  {filename} -> {path}")
-                else:
-                    print(f"  {filename} (not saved)")
+            print(f"\n📂 Extracting Attachments → {args.extract}\n" + "=" * 60)
+            if not results:
+                print("⚠️  No attachments found.\n")
+            else:
+                for filename, path in results.items():
+                    print(f"  {filename} -> {path if path else '(not saved)'}")
 
+    # === 3. Hash attachments ===
     if args.hash:
-        print("\n🔐 Attachment Hash Summary\n" + "=" * 60)
         hashes = process_attachments(mail, action="hash")
 
-        if not hashes:
-            print("⚠️  No attachment hashes generated.\n")
+        if args.json:
+            json_output["hashes"] = hashes or {}
         else:
-            for filename, info in hashes.items():
-                print(f"- {filename}")
-                print(f"  MD5:    {info.get('md5', 'N/A')}")
-                print(f"  SHA1:   {info.get('sha1', 'N/A')}")
-                print(f"  SHA256: {info.get('sha256', 'N/A')}")
-                print()  # blank line between attachments
-            
+            print("\n🔐 Attachment Hash Summary\n" + "=" * 60)
+            if not hashes:
+                print("⚠️  No attachment hashes generated.\n")
+            else:
+                for filename, info in hashes.items():
+                    print(f"- {filename}")
+                    print(f"  MD5:    {info.get('md5', 'N/A')}")
+                    print(f"  SHA1:   {info.get('sha1', 'N/A')}")
+                    print(f"  SHA256: {info.get('sha256', 'N/A')}")
+                    print()
+
+    # === 4. VirusTotal ===
     if args.scan:
-        print("\n🧪 VirusTotal Scan (Attachments)\n" + "=" * 60)
         results = process_attachments(mail, action="scan")
 
-        if not results:
-            print("  None")
+        if args.json:
+            json_output["virustotal_scan"] = results or {}
         else:
-            for filename, info in results.items():
-                print(f"{filename}:")
-                print(f"  SHA256: {info['sha256']}")
-            
-                vt = info.get('virustotal', {})
-                if not vt:
-                    print("  ⚠️  No VT response")
-                elif "error" in vt:
-                    print(f"  ⚠️  Error: {vt['error']}")
-                elif "warning" in vt:
-                    print(f"  ⚠️  {vt['warning']}")
-                else:
-                    print(f"  🧪 VT Stats → Malicious: {vt.get('malicious', 0)}, Suspicious: {vt.get('suspicious', 0)}, Harmless: {vt.get('harmless', 0)}, Undetected: {vt.get('undetected', 0)}")
-                print()  # blank line between attachments
+            print("\n🧪 VirusTotal Scan (Attachments)\n" + "=" * 60)
+            if not results:
+                print("  None\n")
+            else:
+                for filename, info in results.items():
+                    print(f"{filename}:")
+                    print(f"  SHA256: {info['sha256']}")
+                    vt = info.get('virustotal', {})
+                    if not vt:
+                        print("  ⚠️  No VT response")
+                    elif "error" in vt:
+                        print(f"  ⚠️  Error: {vt['error']}")
+                    elif "warning" in vt:
+                        print(f"  ⚠️  {vt['warning']}")
+                    else:
+                        print(f"  🧪 VT Stats → "
+                              f"Malicious: {vt.get('malicious', 0)}, "
+                              f"Suspicious: {vt.get('suspicious', 0)}, "
+                              f"Harmless: {vt.get('harmless', 0)}, "
+                              f"Undetected: {vt.get('undetected', 0)}")
+                    print()
 
+    # === Final Output (JSON mode) ===
+    if args.json:
+        print(json.dumps(json_output, indent=None, sort_keys=False))
 
 
 def handle_links(args, mail):
-    
     html_body = mail.body or ""
     links = extract_links(html_body)
 
     if not links:
-        print("⚠️  No URLs found in the email.\n")
+        msg = {"error": "No URLs found in the email"}
+        if args.json:
+            print(json.dumps(msg))
+        else:
+            print("Warning: No URLs found in the email.\n")
         return
+
 
     # Split URLs into web (http/https) and non-web
     web_urls = [u for u in links if u.lower().startswith(("http://", "https://"))]
     non_web_urls = [u for u in links if not u.lower().startswith(("http://", "https://"))]
 
+    # Base JSON object for --json mode
+    json_output = {
+        "total_urls": len(links),
+        "web_urls": web_urls,
+        "non_web_urls": non_web_urls,
+    }
 
+    # === 1. URL Extraction ===
     if args.extract:
-        print(f"\n🔍 URL Extraction — {len(links)} Found\n" + "=" * 60)
-        for url in links:
-            print(f"- {url}")
+        if args.json:
+            json_output["extraction"] = links
+        else:
+            print(f"\n🔍 URL Extraction — {len(links)} Found\n" + "=" * 60)
+            for url in links:
+                print(f"- {url}")
+            print()
 
 
+    # === 2. VirusTotal Scan ===
     if args.scan:
-        # Report non-web URLs
-        if non_web_urls:
-            print("ℹ️  Non-web URLs detected (skipped for scanning):")
+        if not args.json and non_web_urls:
+            print("Info: Non-web URLs skipped:")
             for url in non_web_urls:
                 print(f"  - {url}")
             print()
 
-        # Scan web URLs on VirusTotal
-        print("\n🧪 VirusTotal Scan (Links)\n" + "=" * 60)
         vt_results = scan_with_virustotal(web_urls)
-        for url, result in vt_results.items():
-            print(f"- {url} => {result}")
 
-      
+        if args.json:
+            json_output["virustotal_scan"] = vt_results
+        else:
+            print("\n🧪 VirusTotal Scan (Links)\n" + "=" * 60)
+            for url, result in vt_results.items():
+                print(f"- {url} => {result}")
+            print()
 
+    # === 3. Redirect Chain Analysis ===
     if args.check_redirects:
+        redirect_results = []
 
-        # First, report non-web URLs
-        print("ℹ️  Non-web URLs detected (skipped for redirect check):")
+        if not args.json:
+            if non_web_urls:
+                print("Info: Non-web URLs skipped:")
+                for url in non_web_urls:
+                    print(f"  - {url}")
+                print()
+            print("\n🔗 Redirect Chain Analysis\n" + "=" * 60)
 
-        for url in non_web_urls:
-            print(f"  - {url}")
-        print()
-        
-        print("\n🔗 Redirect Chain Analysis\n" + "=" * 60)
-        # Now process only web URLs
         for url in web_urls:
-            redirect_info = get_redirect_chain(url)
+            info = get_redirect_chain(url)
 
-            # Handle errors
-            if redirect_info.get("error"):
-                error_msg = redirect_info["error"].split(":")[0]
-                print(f"❌  Redirect error for {url}: {error_msg}\n")
+            if info.get("error"):
+                error_msg = info["error"].split(":")[0]
+                result = {"original_url": url, "error": error_msg}
+                redirect_results.append(result)
+
+                if not args.json:
+                    print(f"Error: Redirect error for {url}: {error_msg}\n")
                 continue
 
-            # Print redirect info
-            print(f"URL: {redirect_info['original_url']}")
-            print(f" ↳ Final URL: {redirect_info.get('final_url', 'N/A')}")
-            redirected = redirect_info['redirect_count'] > 0
-            print(f" ↳ Redirected: {'Yes' if redirected else 'No'}")
-            print(f" ↳ Redirect Count: {redirect_info['redirect_count']}")
-            print(f" ↳ Status Codes: {redirect_info.get('status_codes', [])}")
+            clean = {
+                "original_url": info["original_url"],
+                "final_url": info.get("final_url"),
+                "redirected": info["redirect_count"] > 0,
+                "redirect_count": info["redirect_count"],
+                "status_codes": info.get("status_codes", []),
+                "redirect_chain": info.get("redirect_chain", [])
+            }
+            redirect_results.append(clean)
 
-            # Print chain
-            print(" ↳ Chain:")
-            for idx, u in enumerate(redirect_info.get('redirect_chain', [])):
-                prefix = "   └──" if idx == len(redirect_info['redirect_chain']) - 1 else "   ├──"
-                print(f"{prefix} {u}")
+            if not args.json:
+                print(f"URL: {info['original_url']}")
+                print(f" ↳ Final URL: {info.get('final_url', 'N/A')}")
+                print(f" ↳ Redirected: {'Yes' if clean['redirected'] else 'No'}")
+                print(f" ↳ Redirect Count: {clean['redirect_count']}")
+                print(f" ↳ Status Codes: {clean['status_codes']}")
+                print(" ↳ Chain:")
+                for i, u in enumerate(clean["redirect_chain"]):
+                    prefix = "   └──" if i == len(clean["redirect_chain"]) - 1 else "   ├──"
+                    print(f"{prefix} {u}")
+                print()
 
-            print()  # blank line for spacing
+        json_output["redirect_analysis"] = redirect_results
 
-
+    # === 4. Phishing Heuristics ===
     if args.heuristics:
-        print("\n🎯 Phishing Heuristics (Links)\n" + "=" * 60)
+        if not args.json:
+            if non_web_urls:
+                print("Info: Non-web URLs skipped:")
+                for url in non_web_urls:
+                    print(f"  - {url}")
+            print()
 
-        # Inform about skipped non-web URLs
-        for url in non_web_urls:
-            print(f"[i] Non-web URL found (skipped for check): {url}")
 
-        # Run heuristics on web URLs
-        heuristics_result = run_link_heuristics(web_urls, include_redirects=args.include_redirects)
+        heuristics = run_link_heuristics(web_urls, include_redirects=args.include_redirects)
 
-        print(json.dumps(heuristics_result, indent=2, sort_keys=False))
+        if args.json:
+            json_output["link_heuristics"] = heuristics
+        else:
+        	print("\n🎯 Phishing Heuristics (Links)\n" + "=" * 60)
+            print(json.dumps(heuristics, indent=2, sort_keys=False))
+            print()
 
+    # === Final Output (JSON mode) ===
+    if args.json:
+        print(json.dumps(json_output))
 
 
 def main():
