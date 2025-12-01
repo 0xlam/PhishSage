@@ -52,3 +52,9 @@ MAX_REDIRECTS = HEURISTICS.get("max_redirects", 10)
 THRESHOLD_YOUNG = HEURISTICS.get("threshold_young", 30)
 THRESHOLD_EXPIRING = HEURISTICS.get("threshold_expiring", 10)
 VIRUSTOTAL_API_KEY = API_CONFIG["virustotal_api_key"]
+
+# Certificate analysis thresholds
+CERT_RECENT_ISSUE_DAYS_THRESHOLD = HEURISTICS.get("cert_recent_issue_days_threshold", 30)
+CERT_EXPIRY_SOON_DAYS_THRESHOLD = HEURISTICS.get("cert_expiry_soon_days_threshold", 10)
+SSL_DEFAULT_PORT = HEURISTICS.get("ssl_default_port", 443)
+SSL_HANDSHAKE_TIMEOUT_SECONDS = HEURISTICS.get("ssl_handshake_timeout_seconds", 5)

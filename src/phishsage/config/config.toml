@@ -123,3 +123,20 @@ max_redirects = 10  # Prevents infinite or excessively long redirect chains
 threshold_young = 30      # Domains younger than this are considered "young" and potentially suspicious
 
 threshold_expiring = 10  # Domains expiring in fewer than this many days are flagged as expiring soon
+
+
+# -----------------------------------------
+# Certificate Analysis Thresholds
+# -----------------------------------------
+
+# How many days old a certificate must be to be flagged as "recently issued"
+cert_recent_issue_days_threshold = 30
+
+# How many days before expiry a certificate is considered "expiring soon"
+cert_expiry_soon_days_threshold = 10
+
+# SSL default port for certificate retrieval
+ssl_default_port = 443
+
+# SSL handshake timeout in seconds
+ssl_handshake_timeout_seconds = 5
