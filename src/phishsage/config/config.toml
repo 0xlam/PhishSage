@@ -4,19 +4,68 @@ virustotal_api_key = ""
 [heuristics]
 
 suspicious_url_keywords = [
+    # ── Auth / Login
     "login", "signin", "sign-in", "sign_in", "auth", "authenticate", "authentication",
     "verify", "verification", "confirm", "confirm-account", "approve", "authorize",
     "password", "passwd", "pass", "credential", "credentials", "reset", "reset-password",
-    "unlock", "twofactor", "two-factor", "mfa", "otp", "token",
+    "unlock", "twofactor", "two-factor", "mfa", "otp", "token", "private-key", "seed", "keystore",
 
-    "account", "accounts", "secure", "secure-login", "secure-account",
-    "security", "account-update", "update", "verify-account", "verification-code",
-    "reverify", "reconfirm", "challenge",
-    
+    # ── Account Security Panic
+    "account", "accounts", "secure", "secure-login", "secure-account", "security",
+    "account-update", "update", "verify-account", "verification-code", "reverify",
+    "reconfirm", "challenge", "locked", "lock", "suspend", "suspended", "disable",
+    "disabled", "limit", "limited", "alert", "urgent", "warning", "important",
+    "unusual-activity", "suspicious-login", "compromised",
+
+    # ── Urgency / FOMO
+    "immediate", "required-action", "last-chance", "expire", "24hours", "48hours",
+    "final-notice", "limited-spots", "mint-now", "whitelist", "presale",
+
+    # ── Banking / Payment / Fintech
     "billing", "payment", "invoice", "receipt", "payment-info", "card", "credit-card",
-    "bank", "banking", "pay", "paypal", "stripe", "appleid", "microsoft", "amazon",
-    "ebay", "renew", "subscription", "activation", "activate", "delivery", "shipping"
+    "bank", "banking", "pay", "paypal", "stripe", "appleid", "microsoft", "amazon", "ebay",
+    "renew", "subscription", "activation", "activate", "transfer", "transaction",
+    "withdraw", "deposit", "revolut", "wise", "chime", "cashapp", "venmo", "zelle",
 
+    # ── Government / Tax
+    "irs", "hmrc", "tax-refund", "stimulus", "gov", "refund", "ssn", "ein",
+
+    # ── Crypto General
+    "crypto", "wallet", "airdrop", "claim", "reward", "bonus", "giveaway",
+    "double-your-crypto", "usdt", "usdc", "eth-giveaway", "airdrop-claim",
+    "staking-reward", "web3", "dapp", "defi",
+
+    # ── Crypto Wallet Drainers
+    "wallet-connect", "connect-wallet", "sync-wallet", "verify-wallet",
+    "metamask", "ledger-live", "coinbase", "binance", "kraken", "trustwallet",
+    "phantom", "approve-spend", "sign-message", "revoke", "permit",
+
+    # ── Delivery Scams
+    "delivery", "shipping", "fedex", "dhl", "ups", "parcel", "tracking", "track",
+    "post", "postoffice", "logistics",
+
+    # ── Email / Portals
+    "webmail", "mailbox", "outlook", "office365", "o365", "portal", "dashboard",
+    "myaccount", "my-account", "profile", "settings", "icloud", "appleid-signin", "apple-security",
+
+    # ── File / SaaS Impersonation
+    "onedrive", "sharepoint", "drive", "docs", "doc", "document", "docusign", "pdf",
+    "file", "file-download", "download", "notion", "figma", "canva", "adobe-sign",
+    "slack", "slack-reset", "miro", "linear", "clickup",
+
+    # ── AI Tool Impersonation
+    "chatgpt", "openai", "claude", "anthropic", "perplexity", "midjourney",
+
+    # ── Streaming Subscriptions
+    "netflix", "spotify", "disneyplus", "hulu", "amazon-prime", "prime-video",
+
+    # ── Gaming / Kid Scams
+    "roblox", "robux", "nitro", "discord-gift", "discord-nitro", "tiktok",
+    "free-vbucks", "fortnite", "steam", "steamwallet", "playstation", "psn",
+
+    # ── Support / Recovery
+    "support", "helpdesk", "service", "customer-service", "upgrade", "renewal",
+    "restore", "recover", "validation", "check", "status",
 ]
 
 
