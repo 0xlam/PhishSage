@@ -1,3 +1,4 @@
+import vt
 import base64
 import requests
 from phishsage.config.loader import  VIRUSTOTAL_API_KEY
@@ -69,49 +70,84 @@ def safe_request(
     return {"ok": False, "response": None, "content": None, "error": err}
 
 
-def check_virustotal(file_hash=None, url=None, debug=False):
+def check_virustotal(file_hash = None, url = None):
     if not VIRUSTOTAL_API_KEY:
-        return {"warning": "API key missing (skipping VirusTotal check)"}
+        return {
+            "status": "auth_error",
+            "flags": ["missing_api_key"],
+            "meta": {}
+        }
 
     if url and file_hash:
-        return {"error": "Provide only one of file_hash or url"}
+        return {
+            "status": "error",
+            "flags": ["invalid_input"],
+            "meta": {"reason": "Provide only file_hash OR url, not both"}
+        }
 
     if not (url or file_hash):
-        return {"error": "No file_hash or url provided"}
+        return {
+            "status": "error",
+            "flags": ["missing_parameters"],
+            "meta": {}
+        }
 
-    headers = {"x-apikey": VIRUSTOTAL_API_KEY}
-
-    # Construct endpoint
-    if url:
-        url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
-        endpoint = f"https://www.virustotal.com/api/v3/urls/{url_id}"
-    else:
-        endpoint = f"https://www.virustotal.com/api/v3/files/{file_hash}"
-
-    # Request using safe_request
-    result = safe_request(endpoint, method="GET", headers=headers, debug=debug)
-
-    if not result["ok"]:
-        return {"error": result["error"]}
+    resource = url or file_hash
 
     try:
-        res_json = result["response"].json()
-    except Exception:
-        return {"error": "Invalid JSON response from VirusTotal"}
+        with vt.Client(VIRUSTOTAL_API_KEY) as client:
+            if url:
+                url_id = vt.url_id(url)  
+                obj = client.get_object("/urls/{}", url_id)
+            else:
+                obj = client.get_object("/files/{}", file_hash) 
 
-    # Check for VirusTotal-specific errors
-    if "error" in res_json:
-        err_code = res_json["error"].get("code", "")
-        err_msg = res_json["error"].get("message", "")
-        return {"error": f"VT Error: {err_code or ''} {err_msg or ''}".strip()}
 
-    # Extract results
-    data = res_json.get("data", {})
-    attributes = data.get("attributes", {})
-    stats = attributes.get("last_analysis_stats")
+            stats = obj.last_analysis_stats
+            if stats is None:  
+                return {
+                    "status": "error",
+                    "flags": ["unexpected_format"],
+                    "meta": {"resource": resource}
+                }
 
-    if stats:
-        return stats
+            return {
+                "status": "ok",
+                "flags": [],
+                "meta": {**stats, "resource": resource}
+            }
 
-    return {"error": "Unexpected response format", "raw": res_json}
+    except vt.APIError as e:
+        err = (e.code or "").lower()
 
+        # 1. Resource not found in VirusTotal
+        if err == "not_found_error":
+            return {
+                "status": "not_found",
+                "flags": ["not_found"],
+                "meta": {"resource": resource, "error": str(e)}
+            }
+
+        # 2. API key missing, invalid or forbidden
+        elif err in ("authentication_required_error", "forbidden"):
+            return {
+                "status": "auth_error",
+                "flags": ["invalid_api_key"],
+                "meta": {"resource": resource, "error": str(e)}
+            }
+
+        # 3. Rate limits or quota exceeded
+        elif err in ("quota_exceeded_error", "rate_limit_error"):
+            return {
+                "status": "rate_limited",
+                "flags": ["rate_limited"],
+                "meta": {"resource": resource, "error": str(e)}
+            }
+
+        # 4. Any other API error
+        else:
+            return {
+                "status": "error",
+                "flags": [err or "api_error"],
+                "meta": {"resource": resource, "error": str(e)}
+            }
