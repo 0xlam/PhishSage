@@ -281,7 +281,7 @@ def domain_age_bulk(domains, threshold_young=THRESHOLD_YOUNG, threshold_expiring
 
             if entry["expiry_days_left"] is not None and entry["expiry_days_left"] <= threshold_expiring:
                 alerts.append({
-                    "type": "EXPIRING_SOON",
+                    "type": "DOMAIN_EXPIRING_SOON",
                     "message": f"Domain {domain} is expiring soon — {entry['expiry_days_left']} days left."
                 })
 
