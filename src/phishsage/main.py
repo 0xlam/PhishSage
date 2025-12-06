@@ -155,7 +155,7 @@ def handle_links(args, mail):
 
         if args.json:
             # Strip out 'flag' and 'flags' for JSON output
-            json_output["virustotal_scan"] = {url: {"meta": res["meta"]} for url, res in raw_results.items()}
+            json_output["virustotal_scan"] = {url: {"meta": res["meta"]} for url, res in vt_results.items()}
 
         else:
             print("\n🧪 VirusTotal Scan (Links)\n" + "=" * 60)
