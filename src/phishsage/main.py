@@ -150,15 +150,20 @@ def handle_links(args, mail):
                 print(f"  - {url}")
             print()
 
-        vt_results = scan_with_virustotal(web_urls)
+    
+        vt_results = {url: scan_with_virustotal(url) for url in web_urls}
 
         if args.json:
-            json_output["virustotal_scan"] = vt_results
+            # Strip out 'flag' and 'flags' for JSON output
+            json_output["virustotal_scan"] = {url: {"meta": res["meta"]} for url, res in raw_results.items()}
+
         else:
             print("\n🧪 VirusTotal Scan (Links)\n" + "=" * 60)
             for url, result in vt_results.items():
-                print(f"- {url} => {result}")
-            print()
+                print(f"- {url}")
+                print(f"    Status: {result['meta']['status']}")
+                print(f"    Stats: {result['meta']['stats']}")
+                print()
 
     # === 3. Redirect Chain Analysis ===
     if args.check_redirects:
