@@ -153,7 +153,7 @@ def hash_attachments(parsed_attachments):
 
 
 def scan_attachments(parsed_attachments):
-    """Scan email attachments on VirusTotal using their SHA256 hash."""
+    """Scan email attachments on VirusTotal using their SHA256 hash and extract relevant stats."""
     scanned = {}
 
     for filename, parsed in parsed_attachments.items():
@@ -165,9 +165,20 @@ def scan_attachments(parsed_attachments):
 
         vt_result = check_virustotal(file_hash=sha256)
 
+        # Extract stats excluding the 'resource' key
+        meta_stats = {
+            k: v for k, v in vt_result.get("meta", {}).items() if k != "resource"
+        }
+
+        extracted_vt = {
+            "status": vt_result.get("status"),
+            "flags": vt_result.get("flags", []),
+            "meta": meta_stats
+        }
+
         scanned[filename] = {
             "sha256": sha256,
-            "virustotal": vt_result,
+            "virustotal": extracted_vt,
         }
 
     return scanned

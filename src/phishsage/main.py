@@ -74,12 +74,34 @@ def handle_attachments(args, mail):
                     print()
 
     # === 4. VirusTotal ===
+  
     if args.scan:
         results = process_attachments(mail, action="scan")
 
         if args.json:
+            for info in results.values():
+                vt = info.get("virustotal", {})
+                meta = vt.get("meta", {})
+                #remove unwanted keys
+                for key in ["timeout", "confirmed-timeout", "failure", "type-unsupported"]:
+                    meta.pop(key, None)
+                #remove empty flags
+                if "flags" in vt and not vt["flags"]:
+                    vt.pop("flags")
+
             json_output["virustotal_scan"] = results or {}
+
         else:
+            #remove unwanted keys and empty flags
+            for info in results.values():
+                vt = info.get("virustotal", {})
+                meta = vt.get("meta", {})
+
+                for key in ["timeout", "confirmed-timeout", "failure", "type-unsupported"]:
+                    meta.pop(key, None)
+                if "flags" in vt and not vt["flags"]:
+                    vt.pop("flags")
+
             print("\n🧪 VirusTotal Scan (Attachments)\n" + "=" * 60)
             if not results:
                 print("  None\n")
@@ -87,20 +109,21 @@ def handle_attachments(args, mail):
                 for filename, info in results.items():
                     print(f"{filename}:")
                     print(f"  SHA256: {info['sha256']}")
-                    vt = info.get('virustotal', {})
+                    vt = info.get("virustotal", {})
+
                     if not vt:
                         print("  ⚠️  No VT response")
-                    elif "error" in vt:
-                        print(f"  ⚠️  Error: {vt['error']}")
-                    elif "warning" in vt:
-                        print(f"  ⚠️  {vt['warning']}")
+                    elif vt.get("status") != "ok":
+                        # Display flags and any error messages from meta
+                        flags = ", ".join(vt.get("flags", []))
+                        errors = ", ".join(str(v) for k, v in vt.get("meta", {}).items() if "error" in k.lower())
+                        print(f"  ⚠️  Status: {vt.get('status')}" + (f", Flags: {flags}" if flags else "") + (f", Errors: {errors}" if errors else ""))
                     else:
-                        print(f"  🧪 VT Stats → "
-                              f"Malicious: {vt.get('malicious', 0)}, "
-                              f"Suspicious: {vt.get('suspicious', 0)}, "
-                              f"Harmless: {vt.get('harmless', 0)}, "
-                              f"Undetected: {vt.get('undetected', 0)}")
+                        meta = vt.get("meta", {})
+                        stats_display = ", ".join(f"{k.capitalize()}: {v}" for k, v in meta.items())
+                        print(f"  🧪 VT Stats → {stats_display}")
                     print()
+    
 
     # === Final Output (JSON mode) ===
     if args.json:
