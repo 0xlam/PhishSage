@@ -27,10 +27,14 @@ def get_parser():
         parents=[common],
         help='Analyze or extract attachments')
     attach_parser.add_argument('--list', action='store_true', help='List attachments only')
-    attach_parser.add_argument('--extract', metavar='DIR', help='Extract to directory')
-    attach_parser.add_argument('--hash', action='store_true', help='Hash each file')
-    attach_parser.add_argument('--scan', action='store_true', help='Check VirusTotal')
-    attach_parser.add_argument( "--json", action="store_true", help='Output results in raw JSON format')
+    attach_parser.add_argument('--extract', metavar='DIR', help='Extract attachments to specified directory')
+    attach_parser.add_argument('--hash', action='store_true', help='Compute hashes (MD5, SHA1, SHA256) for each attachment')
+    attach_parser.add_argument('--scan', action='store_true', help='Check attachments against VirusTotal by SHA256')
+    attach_parser.add_argument('--yara', type=str, nargs="+", metavar='PATH',
+                              help='Scan attachments with YARA rules. Paths can be files or directories; directories are scanned recursively for .yar/.yara files.')
+    attach_parser.add_argument('--yara-verbose',action='store_true',
+                              help='Show detailed string matches and offsets when YARA rules hit')
+    attach_parser.add_argument( "--json", action='store_true', help='Output results in raw JSON format')
 
     #----LINKS----
     link_parser = subparsers.add_parser('links',

@@ -123,7 +123,60 @@ def handle_attachments(args, mail):
                         stats_display = ", ".join(f"{k.capitalize()}: {v}" for k, v in meta.items())
                         print(f"  🧪 VT Stats → {stats_display}")
                     print()
-    
+
+    # === 5. YARA Scan (single rule) ===
+    if args.yara:
+        
+        results = process_attachments(mail, action="yara", rules_path=args.yara, verbose=args.yara_verbose) 
+
+        if args.json:
+            json_output["yara_scan"] = results or {}
+
+        else:
+            print("\n🛡️ YARA Scan Results (Attachments)\n" + "=" * 60)
+
+            if isinstance(results, dict) and "error" in results:
+                print(f"  ⚠️  Scan failed: {results['error']}")
+                print()
+
+            elif not results:
+                print("  ⚠️  No attachments scanned.\n")
+
+            else:
+                for filename, scan_result in results.items():
+                    print(f"{filename}:")
+
+                    # Scan failed
+                    if "error" in scan_result:
+                        print(f"  ⚠️  Scan failed: {scan_result['error']}")
+                        continue
+
+                    # Scan suceeded but no matches 
+                    if not scan_result.get("flag", False):
+                        print("  ✅ No rules matched")
+                        continue
+
+                    # Process Matches 
+                    for m in scan_result.get("matches",[]):
+                        if not m.get("flag"):
+                            print(f"  ✅ Rule '{m['rule']}' did not match")
+                            continue
+                        
+                        # Rule matched
+                        print(f"  ⚠️ Rule: {m['rule']}, Namespace: {m['namespace']}")
+                            
+                        if m.get("rule_meta"):
+                            print(f"    Rule info: {m['rule_meta']}")
+
+                        # Verbose matched strings
+                        if args.yara_verbose and m.get("strings"):
+                            for s in m["strings"]:
+                                print(f"    - {s['name']} @ {s['offset']}: {s['data']}")
+
+                        print("\n")
+                    
+                    print()
+        
 
     # === Final Output (JSON mode) ===
     if args.json:

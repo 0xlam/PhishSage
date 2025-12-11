@@ -32,6 +32,9 @@ PhishSage is intentionally minimal and concentrates on these essential capabilit
   * Extract attachments safely (avoid overwrites)
   * Compute hashes (MD5, SHA1, SHA256)
   * Optional VirusTotal scan by SHA256
+  * Scan attachments with YARA rules (single files, multiple files, or directories; recursive and filtered for valid .yar/.yara files)
+  * Verbose mode shows matched strings with offsets and hex data
+
 
 * **Link / URL analysis**
 
@@ -130,16 +133,17 @@ phishsage attachment -h
 **Options:**
 
 ```
-usage: phishsage attachment [-h] -f FILE [--list] [--extract DIR] [--hash] [--scan] [--json]
+usage: phishsage attachment -f FILE [--list] [--extract DIR] [--hash] [--scan] [--yara PATH [PATH ...]] [--yara-verbose] [--json]
 
 options:
-  -h, --help       show this help message and exit
-  -f, --file FILE  Email file to analyze (.eml)
-  --list           List attachments only
-  --extract DIR    Extract to directory
-  --hash           Hash each file
-  --scan           Check VirusTotal
-  --json           Output results in raw JSON format
+  -h, --help              show this help message and exit
+  -f, --file FILE         Email file to analyze (.eml)
+  --list                  List attachments only
+  --extract DIR           Extract attachments to specified directory
+  --hash                  Compute hashes (MD5, SHA1, SHA256) for each attachment
+  --scan                  Check attachments against VirusTotal by SHA256
+  --yara PATH [PATH ...]  Scan attachments with YARA rules. Paths can be files or directories; directories are scanned recursively for .yar/.yara files.
+  --json                  Output results in raw JSON format
 ```
 
 ---
