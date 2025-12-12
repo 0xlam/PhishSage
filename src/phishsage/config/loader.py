@@ -40,13 +40,15 @@ API_CONFIG = {
 HEURISTICS = raw.get("heuristics", {})
 
 # Convert lists → sets for fast lookups
-SUSPICIOUS_URL_KEYWORDS = set(HEURISTICS.get("suspicious_url_keywords", []))
 SUSPICIOUS_TLDS = set(HEURISTICS.get("suspicious_tlds", []))
 SHORTENERS = set(HEURISTICS.get("shorteners", []))
 FREE_EMAIL_DOMAINS = set(HEURISTICS.get("free_email_domains", []))
 TRIVIAL_SUBDOMAINS = set(HEURISTICS.get("trivial_subdomains", []))
+FREE_HOSTING_PROVIDERS= set(HEURISTICS.get("free_hosting_providers", []))
+
 
 SUBDOMAIN_THRESHOLD = HEURISTICS.get("subdomain_threshold", 3)
+ENTROPY_THRESHOLD = HEURISTICS.get("entropy_threshold", 4)
 MAX_PATH_DEPTH = HEURISTICS.get("max_path_depth", 4)
 DATE_RECEIVED_DRIFT_MINUTES = HEURISTICS.get("date_received_drift_minutes", 30)
 MAX_REDIRECTS = HEURISTICS.get("max_redirects", 10)
@@ -58,4 +60,4 @@ VIRUSTOTAL_API_KEY = API_CONFIG["virustotal_api_key"]
 CERT_RECENT_ISSUE_DAYS_THRESHOLD = HEURISTICS.get("cert_recent_issue_days_threshold", 30)
 CERT_EXPIRY_SOON_DAYS_THRESHOLD = HEURISTICS.get("cert_expiry_soon_days_threshold", 10)
 SSL_DEFAULT_PORT = HEURISTICS.get("ssl_default_port", 443)
-SSL_HANDSHAKE_TIMEOUT_SECONDS = HEURISTICS.get("ssl_handshake_timeout_seconds", 5)
+

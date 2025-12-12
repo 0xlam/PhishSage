@@ -3,77 +3,15 @@ virustotal_api_key = ""
 
 [heuristics]
 
-suspicious_url_keywords = [
-    # ── Auth / Login
-    "login", "signin", "sign-in", "sign_in", "auth", "authenticate", "authentication",
-    "verify", "verification", "confirm", "confirm-account", "approve", "authorize",
-    "password", "passwd", "pass", "credential", "credentials", "reset", "reset-password",
-    "unlock", "twofactor", "two-factor", "mfa", "otp", "token", "private-key", "seed", "keystore",
-
-    # ── Account Security Panic
-    "account", "accounts", "secure", "secure-login", "secure-account", "security",
-    "account-update", "update", "verify-account", "verification-code", "reverify",
-    "reconfirm", "challenge", "locked", "lock", "suspend", "suspended", "disable",
-    "disabled", "limit", "limited", "alert", "urgent", "warning", "important",
-    "unusual-activity", "suspicious-login", "compromised",
-
-    # ── Urgency / FOMO
-    "immediate", "required-action", "last-chance", "expire", "24hours", "48hours",
-    "final-notice", "limited-spots", "mint-now", "whitelist", "presale",
-
-    # ── Banking / Payment / Fintech
-    "billing", "payment", "invoice", "receipt", "payment-info", "card", "credit-card",
-    "bank", "banking", "pay", "paypal", "stripe", "appleid", "microsoft", "amazon", "ebay",
-    "renew", "subscription", "activation", "activate", "transfer", "transaction",
-    "withdraw", "deposit", "revolut", "wise", "chime", "cashapp", "venmo", "zelle",
-
-    # ── Government / Tax
-    "irs", "hmrc", "tax-refund", "stimulus", "gov", "refund", "ssn", "ein",
-
-    # ── Crypto General
-    "crypto", "wallet", "airdrop", "claim", "reward", "bonus", "giveaway",
-    "double-your-crypto", "usdt", "usdc", "eth-giveaway", "airdrop-claim",
-    "staking-reward", "web3", "dapp", "defi",
-
-    # ── Crypto Wallet Drainers
-    "wallet-connect", "connect-wallet", "sync-wallet", "verify-wallet",
-    "metamask", "ledger-live", "coinbase", "binance", "kraken", "trustwallet",
-    "phantom", "approve-spend", "sign-message", "revoke", "permit",
-
-    # ── Delivery Scams
-    "delivery", "shipping", "fedex", "dhl", "ups", "parcel", "tracking", "track",
-    "post", "postoffice", "logistics",
-
-    # ── Email / Portals
-    "webmail", "mailbox", "outlook", "office365", "o365", "portal", "dashboard",
-    "myaccount", "my-account", "profile", "settings", "icloud", "appleid-signin", "apple-security",
-
-    # ── File / SaaS Impersonation
-    "onedrive", "sharepoint", "drive", "docs", "doc", "document", "docusign", "pdf",
-    "file", "file-download", "download", "notion", "figma", "canva", "adobe-sign",
-    "slack", "slack-reset", "miro", "linear", "clickup",
-
-    # ── AI Tool Impersonation
-    "chatgpt", "openai", "claude", "anthropic", "perplexity", "midjourney",
-
-    # ── Streaming Subscriptions
-    "netflix", "spotify", "disneyplus", "hulu", "amazon-prime", "prime-video",
-
-    # ── Gaming / Kid Scams
-    "roblox", "robux", "nitro", "discord-gift", "discord-nitro", "tiktok",
-    "free-vbucks", "fortnite", "steam", "steamwallet", "playstation", "psn",
-
-    # ── Support / Recovery
-    "support", "helpdesk", "service", "customer-service", "upgrade", "renewal",
-    "restore", "recover", "validation", "check", "status",
-]
-
 
 suspicious_tlds = [
-    "icu", "xyz", "top", "ru", "cn", "online", "zip", "mov",
-    "porn", "xxx", "casino", "poker", "buzz", "support", "sbs",
-    "loan", "lol", "info", "bond", "today", "shop", "xin", "gdn",
-    "bid", "one", "live", "site", "cfd", "pro", "cc"
+    'icu', 'xyz', 'top', 'ru', 'cn', 'online', 'zip', 'mov',
+    'porn', 'xxx', 'casino', 'poker', 'buzz', 'support', 'sbs',
+    'loan', 'lol', 'info', 'bond', 'today', 'shop', 'xin', 'gdn',
+    'bid', 'one', 'live', 'site', 'cfd', 'pro', 'cc', 'monster',
+    'click', 'fund', 'trade', 'forex', 'market', 'win', 'accountant',
+    'credit', 'cheap', 'discount', 'sale', 'vip'
+
 ]
 
 
@@ -91,7 +29,6 @@ shorteners = [
     
 ]
 
-
 free_email_domains = [
     "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "live.com",
     "protonmail.com", "pm.me", "aol.com", "icloud.com", "zoho.com", "gmx.com",
@@ -99,18 +36,35 @@ free_email_domains = [
     "mail.ru"
 ]
 
+free_hosting_providers = [
+    'neocities.org', '6te.net', 'jimdosite.com', 'framer.app', 'webflow.io',
+    'typedream.app', 'repl.co', 'webnode.page', 'epizy.com', 'onrender.com',
+    'workers.dev', 'overblog.com', 'gitlab.io', 'wixsite.com', 'pages.dev',
+    'strikingly.com', 'webstarts.com', 'weebly.com', 'deno.dev', 'replit.co',
+    'godaddysites.com', 'vercel.app', 'stan.store', 'tumblr.com', 'beacons.ai',
+    'infinityfreeapp.com', 'byet.host', 'cloudflarepages.com', 'site123.me',
+    'carrd.co', 'netlify.app', 'blogspot.com', 'web.app', 'webcindario.com',
+    'linktr.ee', 'rf.gd', 'surge.sh', 'github.io', 'tiiny.app', 'framer.media',
+    'hatenablog.com', 'firebaseapp.com', 'azurewebsites.net', 'wordpress.com', 'webadorsite.com'
+]
 
 
-# Threshold for "too many" meaningful subdomains
+# Threshold for excessive suspicious subdomains: counts long (>2 chars), non-junk (≤40% digits), non-trivial labels
 subdomain_threshold = 3
 
-# trivial subdomains to ignore when counting meaningful subdomains.
+# Shannon entropy threshold for flagging randomly generated domain/subdomain labels 
+entropy_threshold = 4.0
+
+
+# Known benign/trivial subdomains to ignore when counting suspicious ones
 trivial_subdomains = [
     "www", "m",
-    "mail", "webmail", "smtp", "imap", "pop",
-    "ns1", "ns2", "dns", "cpanel", "whm",
-    "cdn", "static", "assets", "files",
-    "backup", "dev", "test"
+    "mail", "webmail",
+    "cdn", "static", "assets",
+    "api", "app",
+    "dev", "staging", "test",
+    "blog", "shop",
+    "cpanel", "whm"
 ]
 
 # Threshold for suspicious URL path depth
@@ -142,5 +96,3 @@ cert_expiry_soon_days_threshold = 10
 # SSL default port for certificate retrieval
 ssl_default_port = 443
 
-# SSL handshake timeout in seconds
-ssl_handshake_timeout_seconds = 5
