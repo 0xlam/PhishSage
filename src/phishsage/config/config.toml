@@ -113,6 +113,9 @@ trivial_subdomains = [
     "backup", "dev", "test"
 ]
 
+# Threshold for suspicious URL path depth
+max_path_depth = 4
+
 
 # Maximum allowed difference between Date header and first Received timestamp.
 date_received_drift_minutes = 30

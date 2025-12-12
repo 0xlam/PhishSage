@@ -47,6 +47,7 @@ FREE_EMAIL_DOMAINS = set(HEURISTICS.get("free_email_domains", []))
 TRIVIAL_SUBDOMAINS = set(HEURISTICS.get("trivial_subdomains", []))
 
 SUBDOMAIN_THRESHOLD = HEURISTICS.get("subdomain_threshold", 3)
+MAX_PATH_DEPTH = HEURISTICS.get("max_path_depth", 4)
 DATE_RECEIVED_DRIFT_MINUTES = HEURISTICS.get("date_received_drift_minutes", 30)
 MAX_REDIRECTS = HEURISTICS.get("max_redirects", 10)
 THRESHOLD_YOUNG = HEURISTICS.get("threshold_young", 30)
