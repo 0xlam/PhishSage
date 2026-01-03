@@ -3,170 +3,187 @@ import time
 import ipaddress
 import ssl
 import socket
-import datetime
+import whois
 import traceback
+from dateutil import parser
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from cryptography.x509.oid import NameOID
 from urllib.parse import urlparse, parse_qs
 from phishsage.config.loader import (
     SUSPICIOUS_TLDS,
     SHORTENERS,
+    FREE_HOSTING_PROVIDERS,
     SUBDOMAIN_THRESHOLD,
-    SUSPICIOUS_URL_KEYWORDS,
+    ENTROPY_THRESHOLD,
+    MAX_PATH_DEPTH,
+    THRESHOLD_YOUNG,
+    THRESHOLD_EXPIRING,
     TRIVIAL_SUBDOMAINS,
     CERT_RECENT_ISSUE_DAYS_THRESHOLD,
     CERT_EXPIRY_SOON_DAYS_THRESHOLD,
     SSL_DEFAULT_PORT,
-    SSL_HANDSHAKE_TIMEOUT_SECONDS,
 )
 from phishsage.utils.url_helpers import *
 from phishsage.utils.api_clients import check_virustotal
-from phishsage.heuristics.headers import domain_age_bulk
 
 
 
-def analyze_certificate(url, timeout=5):
-    """ SSL/TLS certificate analysis. """
+def analyze_certificate(url):
+    """
+    Checks if certificate is expired or recently issued.
+    """
 
     result = {
-        "certificate_analysis": {
-            "status": "no_ssl",
-            "flags": [],
-            "meta": {}
-        }
+        "flags": False,
+        "reason": [],
+        "meta": {},   
     }
 
     try:
-        parsed = urlparse(url)
-        hostname = parsed.hostname
+        hostname = get_hostname(url)
         if not hostname:
-            result["certificate_analysis"]["status"] = "invalid_url"
+            result["reason"].append("invalid_url")
             return result
 
-        # Fetch and parse certificate
-        cert_pem = ssl.get_server_certificate((hostname,
-            SSL_DEFAULT_PORT), timeout=timeout)
-        cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
+        cert_pem = ssl.get_server_certificate(
+            (hostname, SSL_DEFAULT_PORT)
+        )
 
-        # Issuer
-        issuer_attrs = cert.issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME)
-        issuer_name = issuer_attrs[0].value if issuer_attrs else "Unknown"
+        cert = x509.load_pem_x509_certificate(
+            cert_pem.encode(),
+            default_backend()
+        )
 
-        # Validity
+        now = datetime.now(datetime.timezone.utc)
         valid_from = cert.not_valid_before_utc
         valid_to = cert.not_valid_after_utc
-        now = datetime.datetime.now(datetime.UTC)
-        days_since_issued = (now - valid_from).days
-        days_until_expiry = (valid_to - now).days
 
-        # Domain match
-        try:
-            ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
-            sans = ext.value.get_values_for_type(x509.DNSName)
-        except Exception:
-            sans = []
-        cn_list = [attr.value for attr in cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)]
-        names = set(sans + cn_list)
-        domain_match = any(hostname.lower().endswith(name.lower()) for name in names)
+        days_since_issued = (now - valid_from).total_seconds() / 86400
+        days_until_expiry = (valid_to - now).total_seconds() / 86400
 
-        # Flags
-        flags = []
-        if days_since_issued <= CERT_RECENT_ISSUE_DAYS_THRESHOLD:
-            flags.append("cert_recently_issued")
-        if days_until_expiry <= 0:
-            flags.append("cert_expired")
-        elif days_until_expiry <= CERT_EXPIRY_SOON_DAYS_THRESHOLD:
-            flags.append("cert_expiring_soon")
-        if not domain_match:
-            flags.append("cert_domain_mismatch")
-        if issuer_name.lower() == hostname.lower():
-            flags.append("cert_self_signed")
+        # ---- expired ----
+        if now >= valid_to:
+            result["flags"] = True
+            result["reason"].append("expired_certificate")
 
-        # Fill meta
-        meta = {
-            "issuer": issuer_name,
-            "valid_from": valid_from.strftime("%Y-%m-%d"),
-            "valid_to": valid_to.strftime("%Y-%m-%d"),
-            "days_since_issued": days_since_issued,
-            "days_until_expiry": days_until_expiry,
-            "domain_match": domain_match,
-            "san_list": sans,
-            "cn_list": cn_list,
-            "hostname": hostname
+        # ---- recently issued ----
+        if 0 <= days_since_issued <= CERT_RECENT_ISSUE_DAYS_THRESHOLD:
+            result["flags"] = True
+            result["reason"].append("recently_issued_certificate")
+
+        # ---- minimal meta ----
+        issuer_cn = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
+        subject_cn = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+
+        result["meta"] = {
+            "hostname": hostname,
+            "issuer_cn": issuer_cn[0].value if issuer_cn else None,
+            "subject_cn": subject_cn[0].value if subject_cn else None,
+            "valid_from": valid_from.isoformat(),
+            "valid_to": valid_to.isoformat(),
+            "days_since_issued": int(days_since_issued),
+            "days_until_expiry": int(days_until_expiry),
         }
 
-        result["certificate_analysis"].update({
-            "status": "valid",
-            "flags": flags,
-            "meta": meta
-        })
+        return result
 
-    except ssl.SSLError:
-        result["certificate_analysis"].update({
-            "status": "invalid_ssl",
-            "flags": [],
-            "meta": {"hostname": hostname}
-        })
     except socket.timeout:
-        result["certificate_analysis"].update({
-            "status": "timeout",
-            "flags": [],
-            "meta": {"hostname": hostname}
-        })
-    except (ConnectionRefusedError, socket.gaierror):
-        result["certificate_analysis"].update({
-            "status": "no_ssl",
-            "flags": [],
-            "meta": {"hostname": hostname}
-        })
-    except Exception as e:
-        result["certificate_analysis"].update({
-            "status": f"error: {type(e).__name__}",
-            "flags": [],
-            "meta": {"hostname": hostname, "error": str(e)}
-        })
+        return {
+            "flags": True,
+            "reason": ["ssl_handshake_timeout"],
+            "meta": {
+                "hostname": hostname,
+            }      
+        }
 
-    return result
+    except ssl.SSLError as e:
+        msg = str(e)
 
-
-def domain_entropy(url):
-    """ Analyze entropy of the domain and subdomain components in a URL. """
-    try:
-        _, domain, subdomain, tld = extract_domain_parts(url)
-
-        subdomain = subdomain or ""
-        domain = domain or ""
-        tld = tld or ""
-
-        subdomain_entropy = shannon_entropy(subdomain)
-        domain_entropy_score = shannon_entropy(domain)
-
-        # Flags based on thresholds
-        sub_flag = subdomain_entropy > 3.0
-        domain_flag = domain_entropy_score > 3.5
+        if "CERTIFICATE_VERIFY_FAILED" in msg:
+            reason = "certificate verification failed"
+        elif "WRONG_VERSION_NUMBER" in msg:
+            reason = "tls_protocol_mismatch"
+        elif "HANDSHAKE_FAILURE" in msg:
+            reason = "handshake_failure"
+        else:
+            reason = "ssl_error"
 
         return {
-            "flag": sub_flag or domain_flag, 
+            "flags": True,
+            "reason": reason,
             "meta": {
-                "subdomain": subdomain,
-                "domain": domain,
-                "tld": tld,
-                "subdomain_entropy": subdomain_entropy,
-                "domain_entropy": domain_entropy_score,
-                "thresholds": {
-                    "subdomain": 3.0,
-                    "domain": 3.5
-                },
-                "flags": [
-                    "high_subdomain_entropy" if sub_flag else None,
-                    "high_domain_entropy" if domain_flag else None
-                ]
+                "hostname": hostname,
+            }
+            
+        }
+
+    except Exception as e:
+        return {
+            "flags": True,
+            "reason": ["unhandled_error"],
+            "meta": {
+                "hostname" : hostname
             }
         }
 
+
+def domain_entropy(url, entropy_threshold = ENTROPY_THRESHOLD):
+    """
+    Flags URLs where the domain label or subdomain has suspiciously high Shannon entropy
+    """
+    try:
+        registered_domain, domain_label, subdomain, _ = extract_domain_parts(url)
+        
+        subdomain = subdomain or ""
+        domain_label = domain_label or ""
+
+        
+        subdomain_ent = shannon_entropy(subdomain)
+        domain_ent = shannon_entropy(domain_label)
+        
+        # Only consider entropy meaningful if string is long enough
+        sub_high = len(subdomain) >= 8 and subdomain_ent >= entropy_threshold
+        domain_high = len(domain_label) >= 6 and domain_ent >= entropy_threshold
+        
+        flag = sub_high or domain_high
+
+        reason = []
+        if sub_high:
+            reason.append("high_subdomain_entropy")
+        if domain_high:
+            reason.append("high_domain_entropy")
+
+        return {
+            "flags": flag,
+            "reason": reason,
+            "meta": {
+                "registered_domain": registered_domain,
+                "domain_label": domain_label,
+                "subdomain": subdomain,
+                "subdomain_entropy": round(subdomain_ent, 3),
+                "domain_entropy": round(domain_ent, 3),
+                "entropy_threshold": entropy_threshold,           
+            },
+            
+        }
+
     except Exception as e:
-        return {"flag": False, "meta": {"error": str(e), "subdomain": None, "domain": None, "tld": None}}
+        return {
+            "flags": False,
+            "reason": ["unexpected_error"],
+            "meta": {
+                "registered_domain": None,
+                "domain_label": None,
+                "subdomain": None,
+                "subdomain_entropy": None,
+                "domain_entropy": None,
+                "entropy_threshold": entropy_threshold,
+                "error": str(e), 
+            },     
+        }
 
 
 def has_suspicious_tld(url):
@@ -174,310 +191,566 @@ def has_suspicious_tld(url):
     Checks if the URL's top-level domain (TLD) is in a known list of suspicious TLDs.
     """
     try:
-        _, _, _, tld = extract_domain_parts(url)
-        if not tld:
-            return {"flag": False, "meta": {"tld": None}}
+        registered_domain, _, _, public_suffix = extract_domain_parts(url)
 
-        flag = tld in SUSPICIOUS_TLDS or tld.startswith("xn--") 
-        meta = {
-            "tld": tld,
-            "is_suspicious": flag,
-            "reason": "known_suspicious_tld" if flag and tld in SUSPICIOUS_TLDS else
-                      "punycode_tld" if flag else "none"
+        if not public_suffix:
+            return {
+                "flags": False,
+                "reason": ["no_public_suffix_extracted"],
+                "meta": {
+                    "registered_domain": registered_domain if registered_domain else None,
+                    "public_suffix": None,     
+                },              
+            }
+
+        
+        is_known_suspicious = public_suffix in SUSPICIOUS_TLDS
+        is_punycode = public_suffix.startswith("xn--")
+        flag = is_known_suspicious or is_punycode
+        
+        reason = []
+
+        if is_known_suspicious:
+            reason.append("known_suspicious_tld")
+
+        if is_punycode:
+            reason.append("punycode_tld")
+            
+
+        return {
+            "flags": flag,
+            "reason": reason,
+            "meta": {
+                "registered_domain": registered_domain,
+                "public_suffix": public_suffix,          
+            },
         }
 
-        return {"flag": flag, "meta": meta}
-
     except Exception as e:
-        return {"flag": False, "meta": {"error": str(e), "tld": None}}
-
+        return {
+            "flags": False,
+            "reason": ["unexpected_error"],
+            "meta": {
+                "registered_domain": None,
+                "public_suffix": None,
+                "error": str(e),                     
+            },          
+        }
+        
 
 def is_ip_url(url):
     """ Detects if a URL directly uses an IP address instead of a domain name."""
     try:
         hostname = get_hostname(url)
+        
         if not hostname:
-            return {"flag": False, "meta": {"hostname": None}}
+            return {
+                "flags": False,
+                "reason": ["no_hostname_extracted"],
+                "meta": {
+                    "registered_domain": None,
+                    "hostname": None,
+                },
+            }
 
         try:
             ip_obj = ipaddress.ip_address(hostname)
             return {
-                "flag": True,
+                "flags": True,
+                "reason": ["ip_based_url"],
                 "meta": {
+                    "registered_domain": None,
                     "hostname": hostname,
-                    "ip_version": ip_obj.version,
-                    "is_ip": True
-                }
+                    "ip_version": ip_obj.version,    
+                },
+                
             }
+
         except ValueError:
             # Not an IP
+            registered_domain, domain_label, _, _ = extract_domain_parts(url)
+            
             return {
-                "flag": False,
+                "flags": False,
+                "reason": ["none"],
                 "meta": {
+                    "registered_domain": registered_domain,
                     "hostname": hostname,
-                    "is_ip": False
-                }
+                },
             }
 
     except Exception as e:
-        return {"flag": False, "meta": {"hostname": None, "error": str(e)}}
+        return {
+            "flags": False,
+            "reason": ["unexpected_error"],
+            "meta": {
+                "registered_domain": None,
+                "hostname": None,
+                "error": str(e),
+            },
+            
+        }
 
 
 def too_many_subdomains(url, threshold=SUBDOMAIN_THRESHOLD):
     """
-    Detects if a URL contains an excessive number of subdomains.
-    Ignores trivial subdomains like 'www'.
+    Detect whether a URL contains an excessive number of suspicious subdomains.
+    Trivial subdomains like 'www' are ignored.
     """
+
+    def looks_like_junk(label: str) -> bool:
+        if not label:
+            return True
+        digit_ratio = sum(c.isdigit() for c in label) / len(label)
+        return digit_ratio > 0.4
+
     try:
-        _, _, subdomain, _ = extract_domain_parts(url)
+        registered_domain, _, subdomain, _ = extract_domain_parts(url)
+
         if not subdomain:
-            return {"flag": False, "meta": {"subdomain": None, "meaningful_count": 0, "threshold": threshold, "meaningful_subdomains": []}}
+            return {
+                "flags": False,
+                "reason": [],
+                "meta": {
+                    "registered_domain": registered_domain,
+                    "subdomain": None,
+                    "suspicious_count": 0,
+                    "threshold": threshold,
+                    "suspicious_subdomains": [],
+                },
+            }
 
-        # Split subdomains and ignore trivial ones
-        meaningful_parts = [s for s in subdomain.split('.') if s.lower() not in TRIVIAL_SUBDOMAINS and s]
-        flag = len(meaningful_parts) > threshold
+        parts = [p for p in subdomain.split(".") if p]
 
-        meta = {
-            "subdomain": subdomain,
-            "meaningful_count": len(meaningful_parts),
-            "threshold": threshold,
-            "meaningful_subdomains": meaningful_parts
+        suspicious_parts = []
+        for p in parts:
+            lower_p = p.lower()
+
+            if lower_p in TRIVIAL_SUBDOMAINS:
+                continue
+
+            if len(p) <= 2:
+                continue
+
+            if looks_like_junk(p):
+                suspicious_parts.append(p)
+
+        suspicious_count = len(suspicious_parts)
+        is_excessive = suspicious_count >= threshold
+
+        return {
+            "flags": is_excessive,
+            "reason": ["excessive_suspicious_subdomains"] if is_excessive else [],
+            "meta": {
+                "registered_domain": registered_domain,
+                "subdomain": subdomain,
+                "suspicious_count": suspicious_count,
+                "threshold": threshold,
+                "suspicious_subdomains": suspicious_parts,
+            },
         }
 
-        return {"flag": flag, "meta": meta}
-
     except Exception as e:
-        return {"flag": False, "meta": {"error": str(e), "subdomain": None}}
-
-
-def url_has_suspicious_keywords(url):
-    """ Checks for suspicious keywords in domain, path, or query parameters. """
-    try:
-        parsed = urlparse(normalize_url(url))
-        matched = set()
-
-        domain = (parsed.hostname or "").lower()
-        path = parsed.path.lower()
-        query = parse_qs(parsed.query)
-
-        for kw in SUSPICIOUS_URL_KEYWORDS:
-            if kw in domain or kw in path:
-                matched.add(kw)
-
-            for param, values in query.items():
-                if kw in param.lower():
-                    matched.add(kw)
-                for v in values:
-                    if kw in v.lower():
-                        matched.add(kw)
-
-        flag = bool(matched)
-        meta = {
-            "domain": domain,
-            "path": parsed.path,
-            "query": {k: v for k, v in query.items()},
-            "matched_keywords": sorted(matched)
+        return {
+            "flags": True,
+            "reason": ["subdomain_analysis_failed"],
+            "meta": {
+                "registered_domain": None,
+                "subdomain": None,
+                "suspicious_count": None,
+                "threshold": threshold,
+                "suspicious_subdomains": [],
+                "error": str(e),
+            },
         }
 
-        return {"flag": flag, "meta": meta}
-
-    except Exception as e:
-        return {"flag": False, "meta": {"error": str(e), "domain": None}}
 
 
 def is_shortened_url(url):
-    """ Identifies whether a URL belongs to a known shortening service. """
+    """Check whether the URL uses a known URL shortening service."""
     try:
-        hostname = get_hostname(url)
-        if not hostname:
-            return {"flag": False, "meta": {"hostname": None, "shortener": None}}
+        registered_domain, _, _, _ = extract_domain_parts(url)
 
-        hostname_lower = hostname.lower()
-        matched_shortener = None
+        if not registered_domain:
+            return {
+                "flags": False,
+                "reason": ["no_registered_domain"],
+                "meta": {
+                    "registered_domain": None,
+                    "matched_shortener": None,
+                },
+            }
 
-        for shortener in SHORTENERS:
-            shortener_lower = shortener.lower()
-            if hostname_lower == shortener_lower:
-                matched_shortener = shortener_lower
-                break
+        registered_domain_lower = registered_domain.lower()
+        shorteners = [s.lower() for s in SHORTENERS]
 
-        flag = matched_shortener is not None
-        meta = {
-            "hostname": hostname,
-            "shortener": matched_shortener,
-            "reason": "known_shortening_service" if flag else "none"
-        }
+        matched_shortener = next(
+            (s for s in shorteners if registered_domain_lower == s),
+            None,
+        )
 
-        return {"flag": flag, "meta": meta}
+        is_shortened = matched_shortener is not None
 
-    except Exception as e:
-        return {"flag": False, "meta": {"hostname": None, "shortener": None, "error": str(e)}}
-
-
-def has_unicode_homograph(url):
-    """ Detects Unicode homoglyphs or non-ASCII characters in a URL. """
-    try:
-        hostname = get_hostname(url)
-        if not hostname:
-            return {"flag": False, "meta": {"hostname": None, "punycode": None}}
-
-        non_ascii_chars = any(ord(c) > 127 for c in hostname)
-        punycode = None
-
-        if non_ascii_chars:
-            try:
-                punycode = hostname.encode("idna").decode("ascii")
-            except UnicodeError:
-                punycode = None
-
-        flag = non_ascii_chars
-        meta = {
-            "hostname": hostname,
-            "punycode": punycode,
-            "reason": "unicode_homograph" if flag else "none"
-        }
-
-        return {"flag": flag, "meta": meta}
-
-    except Exception as e:
-        return {"flag": False, "meta": {"hostname": None, "punycode": None, "error": str(e)}}
-
-
-def scan_with_virustotal(url, throttle = 1.0):
-
-    vt = check_virustotal(url=url)
-    status = vt.get("status")
-
-    # Throttle only on successful requests
-    if status == "ok":
-        time.sleep(throttle)
-
-    # If there was an error or not found, return clean empty stats
-    if status != "ok":
         return {
-            "flag": False,
+            "flags": is_shortened,
+            "reason": ["url_shortening_service"] if is_shortened else [],
             "meta": {
-                "status": status,
-                "stats": {
-                    "malicious": 0,
-                    "suspicious": 0,
-                    "undetected": 0,
-                    "harmless": 0,
-                    "resource": vt.get("meta", {}).get("resource")
-                }
+                "registered_domain": registered_domain,
+                "matched_shortener": matched_shortener,
             },
-            "flags": vt.get("flags", [])
         }
 
-   
-    stats = vt.get("meta", {})
-    cleaned_stats = {
-        "malicious": stats.get("malicious", 0),
-        "suspicious": stats.get("suspicious", 0),
-        "undetected": stats.get("undetected", 0),
-        "harmless": stats.get("harmless", 0),
-        "resource": stats.get("resource")
-    }
-
-    
-    flag = cleaned_stats["malicious"] > 0 or cleaned_stats["suspicious"] > 0
+    except Exception as e:
+        return {
+            "flags": True,
+            "reason": ["shortened_url_check_failed"],
+            "meta": {
+                "registered_domain": None,
+                "matched_shortener": None,
+                "error": str(e),
+            },
+        }
 
 
-    return {
-        "flag": flag,
+
+def uses_free_hosting_domain(url):
+    """Detect whether a URL uses a known free or cheap hosting provider."""
+    try:
+        registered_domain, _, _, _ = extract_domain_parts(url)
+
+        if not registered_domain:
+            return {
+                "flags": False,
+                "reason": ["no_registered_domain"],
+                "meta": {
+                    "registered_domain": None,
+                    "matched_provider": None,
+                },
+            }
+
+        registered_domain = registered_domain.lower()
+        providers = [d.lower() for d in FREE_HOSTING_PROVIDERS]
+
+        matched_provider = next(
+            (
+                provider
+                for provider in providers
+                if registered_domain == provider
+                or registered_domain.endswith("." + provider)
+            ),
+            None,
+        )
+
+        is_free_hosting = matched_provider is not None
+
+        return {
+            "flags": is_free_hosting,
+            "reason": ["free_hosting_provider"] if is_free_hosting else [],
+            "meta": {
+                "registered_domain": registered_domain,
+                "matched_provider": matched_provider,
+            },
+        }
+
+    except Exception as e:
+        return {
+            "flags": True,
+            "reason": ["free_hosting_check_failed"],
+            "meta": {
+                "registered_domain": None,
+                "matched_provider": None,
+                "error": str(e),
+            },
+        }
+
+
+
+
+def excessive_path_depth(url, max_depth=MAX_PATH_DEPTH):
+    """Check if the URL path has excessive depth."""
+    try:
+        registered_domain, _, _, _ = extract_domain_parts(url)
+
+        parsed = urlparse(normalize_url(url))
+        path = parsed.path or "/"
+
+        depth = len([segment for segment in path.split("/") if segment])
+        is_excessive = depth > max_depth
+
+        return {
+            "flags": is_excessive,
+            "reason": ["excessive_path_depth"] if is_excessive else [],
+            "meta": {
+                "registered_domain": registered_domain,
+                "path": parsed.path,
+                "depth": depth,
+                "max_allowed": max_depth,
+            },
+        }
+
+    except Exception as e:
+        return {
+            "flags": True,
+            "reason": ["path_depth_check_failed"],
+            "meta": {
+                "registered_domain": None,
+                "path": None,
+                "depth": None,
+                "max_allowed": max_depth,
+                "error": str(e),
+            },
+        }
+
+
+def is_numeric_domain(url):
+    """Check if the registrable domain label is numeric-only."""
+    try:
+        registered_domain, domain_label, _, _ = extract_domain_parts(url)
+
+        if not domain_label:
+            return {
+                "flags": False,
+                "reason": ["no_domain_label_extracted"],
+                "meta": {
+                    "registered_domain": None,
+                    "domain_label": None,
+                },
+            }
+
+        is_numeric = domain_label.isdigit()
+
+        return {
+            "flags": is_numeric,
+            "reason": ["numeric_domain"] if is_numeric else [],
+            "meta": {
+                "registered_domain": registered_domain,
+                "domain_label": domain_label,
+            },
+        }
+
+    except Exception as e:
+        return {
+            "flags": True,
+            "reason": ["numeric_domain_check_failed"],
+            "meta": {
+                "registered_domain": None,
+                "domain_label": None,
+                "error": str(e),
+            },
+        }
+
+
+
+
+def domain_age(domain, threshold_young=THRESHOLD_YOUNG, threshold_expiring=THRESHOLD_EXPIRING):
+    """
+    Flags True if domain is newly registered, expiring soon, or WHOIS failed.
+    """
+    result = {
+        "flags": False,
+        "reason": [],
         "meta": {
-            "status": status,
-            "stats": cleaned_stats
+            "domain": domain,
+            "age_days": None,
+            "expiry_days_left": None,
+            "error": None,
         },
-        "flags": ["vt_flagged"] if flag else []
-
     }
 
+    try:
+        w = whois.whois(domain)
+
+        # Handle creation date
+        created = w.creation_date
+        if isinstance(created, list):
+            created = created[0]
+        if isinstance(created, str):
+            created = parser.parse(created)
+
+        # Handle expiration date
+        expires = w.expiration_date
+        if isinstance(expires, list):
+            expires = expires[0]
+        if isinstance(expires, str):
+            expires = parser.parse(expires)
+
+        now = datetime.now(timezone.utc)
+
+        # Normalize timezone
+        if created:
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            else:
+                created = created.astimezone(timezone.utc)
+            result["meta"]["age_days"] = (now - created).days
+            if result["meta"]["age_days"] < threshold_young:
+                result["flags"] = True
+                result["reason"].append("young_domain")
+
+        if expires:
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            else:
+                expires = expires.astimezone(timezone.utc)
+            result["meta"]["expiry_days_left"] = (expires - now).days
+            if result["meta"]["expiry_days_left"] <= threshold_expiring:
+                result["flags"] = True
+                result["reason"].append("domain_expiring_soon")
+
+    except Exception as e:
+        err_msg = str(e).splitlines()[0] if str(e) else "Unknown WHOIS error"
+        result["flags"] = True
+        result["reason"].append("whois_error")
+        result["meta"]["error"] = err_msg
+
+    return result
+
+
+def scan_with_virustotal(url, throttle=1.0):
+    """
+    Scan a URL with VirusTotal and return flags, reason, and meta.
+    Flags True if malicious/suspicious or if scan failed.
+    """
+    try:
+        vt = check_virustotal(url=url)
+        status = vt.get("status")
+        reason_from_vt = vt.get("reason")
+        meta = vt.get("meta", {})
+
+        # Throttle unless rate-limited
+        if status != "rate_limited":
+            time.sleep(throttle)
+
+        # Handle non-success statuses
+        if status != "ok":
+            return {
+                "flags": True,
+                "reason": [reason_from_vt] if reason_from_vt else [f"vt_{status}"],
+                "meta": {
+                    "status": status,
+                    "stats": None,
+                    "resource": meta.get("resource"),
+                },
+            }
+
+        # Extract stats
+        stats = meta
+        cleaned_stats = {
+            "malicious": stats.get("malicious", 0),
+            "suspicious": stats.get("suspicious", 0),
+            "undetected": stats.get("undetected", 0),
+            "harmless": stats.get("harmless", 0),
+            "resource": stats.get("resource"),
+        }
+
+        malicious = cleaned_stats["malicious"] > 0
+        suspicious = cleaned_stats["suspicious"] > 0
+        is_flagged = malicious or suspicious
+
+        # Determine reasons
+        reasons = []
+        if malicious:
+            reasons.append("vt_malicious")
+        elif suspicious:
+            reasons.append("vt_suspicious")
+
+        return {
+            "flags": is_flagged,
+            "reason": reasons,
+            "meta": {
+                "status": "ok",
+                "stats": cleaned_stats,
+            },
+        }
+
+    except Exception as e:
+        # Network or unexpected error
+        return {
+            "flags": True,
+            "reason": ["vt_exception"],
+            "meta": {
+                "status": "exception",
+                "error": str(e),
+            },
+        }
 
 
 def run_link_heuristics(urls, vt_throttle=1.0, include_redirects=False):
     """
     Run all link-based heuristics on a list of URLs.
-   
+    Returns a list of per-URL analysis dictionaries.
+    Each heuristic follows the {flags, reason, meta} format.
     """
+
     full_results = []
 
     for url in urls:
         try:
-            
             normalized_url = normalize_url(url.strip())
+            hostname = get_hostname(normalized_url)
 
-           
+            # --- URL-based heuristics ---
             heuristics = {
                 "ip_based": is_ip_url(normalized_url),
                 "suspicious_tld": has_suspicious_tld(normalized_url),
                 "excessive_subdomains": too_many_subdomains(normalized_url),
                 "shortened_url": is_shortened_url(normalized_url),
-                "suspicious_keywords": url_has_suspicious_keywords(normalized_url),
-                "unicode_homograph": has_unicode_homograph(normalized_url),
+                "numeric_domain": is_numeric_domain(normalized_url),
+                "excessive_path": excessive_path_depth(normalized_url),
+                "free_hosting": uses_free_hosting_domain(normalized_url),
             }
 
             # --- Entropy ---
             try:
                 entropy = domain_entropy(normalized_url)
             except Exception as e:
-                entropy = {"flag": False, "meta": {"error": f"entropy_calc_failed: {str(e)}"}}
+                entropy = {
+                    "flags": False,
+                    "reason": ["entropy_calc_failed"],
+                    "meta": {"error": str(e)},
+                }
 
             # --- SSL Certificate ---
             try:
-                cert_full = analyze_certificate(normalized_url)
-                cert_analysis = cert_full.get("certificate_analysis", {})
+                certificate = analyze_certificate(normalized_url)
+            except Exception as e:
                 certificate = {
-                    "flag": cert_analysis.get("status") == "valid" and bool(cert_analysis.get("flags")),
-                    "meta": {
-                        "status": cert_analysis.get("status", "unknown"),
-                        "flags": cert_analysis.get("flags", []),
-                        **cert_analysis.get("meta", {})  # spread all meta fields
-                    }
+                    "flags": True,
+                    "reason": ["cert_analysis_failed"],
+                    "meta": {"error": str(e)},
                 }
-            except Exception as e:
-                certificate = {"flag": False, "meta": {"error": f"cert_analysis_failed: {str(e)}"}}
 
-            # --- Domain Age / WHOIS---
+            # --- Domain Age / WHOIS ---
             try:
-                hostname = get_hostname(normalized_url)
-                domain_data = domain_age_bulk({"url_domain": hostname}) or {}
-                result_data = domain_data.get("result", {})
-                raw = result_data.get("url_domain", {})
-                alerts = domain_data.get("alerts", [])
-
-                alert_types = [a.get("type", "unknown") for a in alerts if isinstance(a, dict)]
-
-                domain_age = {
-                    "flag": bool(alerts),  # any alert = suspicious
-                    "meta": {
-                        "age_days": raw.get("age_days"),
-                        "expiry_days_left": raw.get("expiry_days_left"),
-                        "alerts": alert_types,
-                        "error": raw.get("error")
+                if hostname:
+                    registered_domain, domain_label, _, _ = extract_domain_parts(url)
+                    domain_age_result = domain_age(registered_domain)
+                else:
+                    domain_age_result = {
+                        "flags": False,
+                        "reason": ["no_hostname"],
+                        "meta": {"domain": None},
                     }
-                }
             except Exception as e:
-                domain_age = {
-                    "flag": False,
-                    "meta": {"error": f"whois_failed: {type(e).__name__}: {str(e)}"}
+                domain_age_result = {
+                    "flags": True,
+                    "reason": ["whois_failed"],
+                    "meta": {"error": str(e)},
                 }
 
             # --- VirusTotal ---
             try:
                 vt_raw = scan_with_virustotal(normalized_url, throttle=vt_throttle)
                 virustotal = {
-                    "flag": vt_raw.get("flag", False),
-                    "meta": {
-                        "status": vt_raw.get("status", "error"),
-                        "stats": vt_raw.get("meta", {}).get("stats", {}),
-                        "flags": vt_raw.get("flags", [])
-                    }
+                    "flags": vt_raw.get("flags", False),
+                    "reason": vt_raw.get("reason", []),
+                    "meta": vt_raw.get("meta", {}),
                 }
             except Exception as e:
                 virustotal = {
-                    "flag": False,
-                    "meta": {"error": f"vt_scan_failed: {str(e)}"}
+                    "flags": True,
+                    "reason": ["vt_scan_failed"],
+                    "meta": {"error": str(e)},
                 }
 
             # --- Optional Redirect Chain ---
@@ -488,53 +761,46 @@ def run_link_heuristics(urls, vt_throttle=1.0, include_redirects=False):
                 except Exception as e:
                     redirect_chain = {"error": f"redirect_check_failed: {str(e)}"}
 
-            # --- Aggregate Flags (top-level summary) ---
+            # --- Aggregate Flags ---
             aggregated_flags = set()
+            for key, result in heuristics.items():
+                if result.get("flags"):
+                    aggregated_flags.update(result.get("reason", []))
+            if entropy.get("flags"):
+                aggregated_flags.update(entropy.get("reason", []))
+            if certificate.get("flags"):
+                aggregated_flags.update(certificate.get("reason", []))
+            if domain_age_result.get("flags"):
+                aggregated_flags.update(domain_age_result.get("reason", []))
+            if virustotal.get("flags"):
+                aggregated_flags.update(virustotal.get("reason", []))
 
-            # From heuristics
-            for name, result in heuristics.items():
-                if result.get("flag"):
-                    aggregated_flags.add(name)
-
-            # Entropy
-            if entropy.get("flag"):
-                aggregated_flags.add("high_entropy")
-
-            # Certificate
-            if certificate.get("flag"):
-                aggregated_flags.update(certificate["meta"].get("flags", []))
-
-            # Domain age alerts
-            if domain_age.get("flag"):
-                aggregated_flags.update(domain_age["meta"].get("alerts", []))
-
-            # VirusTotal
-            if virustotal.get("flag"):
-                aggregated_flags.update(virustotal["meta"].get("flags", []))
-
-            # --- Final Result for This URL ---
+            # --- Final Result per URL ---
             result = {
                 "url": url,
                 "heuristics": heuristics,
                 "entropy": entropy,
                 "certificate": certificate,
-                "domain_age": domain_age,
+                "domain_age": domain_age_result,
                 "virustotal": virustotal,
-                "aggregated_flags": sorted(aggregated_flags)
             }
-
             if redirect_chain:
                 result["redirect_chain"] = redirect_chain
+
+            result["aggregated_flags"] = sorted(aggregated_flags)
 
             full_results.append(result)
 
         except Exception as e:
-            # Don't let one bad URL crash the whole party
+            # Catch-all for any URL-level processing failure
             full_results.append({
                 "url": url,
-                "error": "unhandled_exception",
-                "message": f"{type(e).__name__}: {str(e)}",
-                "traceback": traceback.format_exc()
+                "flags": True,
+                "reason": ["unhandled_exception"],
+                "meta": {
+                    "error": f"{type(e).__name__}: {str(e)}",
+                    "traceback": traceback.format_exc(),
+                },
             })
 
     return full_results
