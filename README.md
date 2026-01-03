@@ -43,38 +43,19 @@ PhishSage is intentionally minimal and concentrates on these essential capabilit
   * Flags suspicious or uncommon top-level domains (TLDs)
   * Identifies excessive or nested subdomains, ignoring trivial ones (e.g., "www")
   * Recognizes shortened URLs (bit.ly, tinyurl.com, etc.)
-  * Scans for phishing-related keywords in domains, paths, and query parameters
-  * Detects Unicode homoglyphs and non-ASCII characters in hostnames
   * Calculates Shannon entropy for domain and subdomain to spot obfuscation
   * Performs SSL/TLS certificate inspection (issuer, validity, domain match, expiration)
   * Looks up domain age via WHOIS and flags newly registered or expiring domains
   * VirusTotal URL lookup for threat intelligence
   * Optional redirect-chain tracing to uncover hidden destinations
+  * Checks for numeric-only registrable domains
+  * Detects URLs hosted on free or cheap hosting platforms
+  * Flags URLs with excessively deep paths
 
 
 ---
 
-
-## 2. Minimal example JSON (header heuristics)
-
-
-```json
-{
-  "mail_id": "f23a91bc",
-  "auth_results": {"spf": "none", "dkim": "fail", "dmarc": "none"},
-  "alignment": {"from": "promo@cheap-offers.biz", "reply": "promo@cheap-offers.biz", "return": "mailer@sketchy-sender.org", "from_vs_reply": true, "from_vs_return": false},
-  "alerts": [
-    {"type": "SPF_FAIL", "message": "SPF check failed (spf=none)"},
-    {"type": "DKIM_FAIL", "message": "DKIM check failed (dkim=fail)"}
-  ]
-}
-```
-
-*Note: The full output also includes domain age, MX record checks, Spamhaus results, and other detailed fields.*
-
----
-
-## 3. CLI Usage
+## 2. CLI Usage
 
 PhishSage provides a command-line interface with three main modes: `headers`, `attachment`, and `links`. The `headers` and `links` modes output results in JSON format, while the `attachment` mode produces human-readable summaries only.
 
@@ -173,7 +154,7 @@ options:
 
 ---
 
-## 4. Environment Setup
+## 3. Environment Setup
 
 ```bash
 # 1. Clone
@@ -202,14 +183,14 @@ export VIRUSTOTAL_API_KEY="your_virustotal_api_key"     # Linux/macOS
 
 ---
 
-## 5. Configuration
+## 4. Configuration
 
 PhishSage stores configuration values in the project config (`config.toml`) or environment variables. The main items you may safely adjust are:
 
   * `VIRUSTOTAL_API_KEY` — API key for VirusTotal scans.
   * `MAX_REDIRECTS` — Maximum number of redirects to follow when checking redirect chains.
   * `THRESHOLD_YOUNG`, `THRESHOLD_EXPIRING` — Domain age/expiry thresholds (in days). Domains younger than `THRESHOLD_YOUNG` or expiring within `THRESHOLD_EXPIRING` days are flagged as potentially suspicious.
-  * `SUSPICIOUS_URL_KEYWORDS`, `SUSPICIOUS_TLDS`, `SHORTENERS` — Heuristic lists used in URL/link analysis.
+  * `FREE_HOSTING_PROVIDERS`, `SUSPICIOUS_TLDS`, `SHORTENERS` — Heuristic lists used in URL/link analysis.
   * `SUBDOMAIN_THRESHOLD`, `TRIVIAL_SUBDOMAINS` — Used for subdomain heuristics to identify excessive or meaningful subdomains.
   * `FREE_EMAIL_DOMAINS` — Free email providers that may indicate disposable or less-trusted addresses.
   * `DATE_RECEIVED_DRIFT_MINUTES` — Maximum allowed difference between the `Date` header and the first `Received` hop in email headers.
@@ -219,12 +200,11 @@ PhishSage stores configuration values in the project config (`config.toml`) or e
 
 ---
 
-## 6. Scope & Limitations
+## 5. Scope & Limitations
 
   * **Focused functionality:** PhishSage is not a full mail forensic suite. It prioritizes heuristics, quick triage, and enrichment over deep forensic analysis.
   * **Network-dependent checks:** WHOIS, VirusTotal, MX, and SSL inspections rely on external services; results may vary or fail due to connectivity issues or API limits.
   * **Attachment processing:** Currently limited to listing, extraction, hashing, and optional VirusTotal scans. Full heuristic attachment analysis will be introduced in a future release.
-  * **Link analysis:** Employs heuristics for suspicious TLDs, subdomains, URL shortening, Unicode homoglyphs, entropy, and SSL checks. False positives are possible, and highly obfuscated phishing URLs may be missed.
   * **Output formats:** JSON output is available for `headers` and `links` modes. The `attachment` mode produces human-readable summaries only.
   * **Intended use:** Designed for investigative support and enrichment. Not intended for automated blocking or enforcement in production email systems.
   * **Evolving coverage:** Current checks under each section are limited; additional heuristics and enhanced analyses will be added in future releases.
@@ -232,12 +212,12 @@ PhishSage stores configuration values in the project config (`config.toml`) or e
 
 ---
 
-## 7. Contributing
+## 6. Contributing
 
 Contributions to PhishSage are welcome! You can help improve the project by:
 
 * Adding or refining heuristic checks for headers, attachments, and links.
-* Expanding the lists in `config.toml`, such as `SUSPICIOUS_URL_KEYWORDS`, `SUSPICIOUS_TLDS`, `SHORTENERS`, and `FREE_EMAIL_DOMAINS`.
+* Expanding the lists in `config.toml`.
 * Improving parsing, normalization, or output handling.
 * Reporting bugs or suggesting enhancements.
 
