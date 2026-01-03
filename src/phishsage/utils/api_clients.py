@@ -70,25 +70,26 @@ def safe_request(
     return {"ok": False, "response": None, "content": None, "error": err}
 
 
+
 def check_virustotal(file_hash = None, url = None):
     if not VIRUSTOTAL_API_KEY:
         return {
             "status": "auth_error",
-            "flags": ["missing_api_key"],
+            "reason": "missing_api_key",
             "meta": {}
         }
 
     if url and file_hash:
         return {
             "status": "error",
-            "flags": ["invalid_input"],
-            "meta": {"reason": "Provide only file_hash OR url, not both"}
+            "reason": "invalid_input",
+            "meta": {"details": "Provide only file_hash OR url, not both"}
         }
 
     if not (url or file_hash):
         return {
             "status": "error",
-            "flags": ["missing_parameters"],
+            "reason": "missing_parameters",
             "meta": {}
         }
 
@@ -97,57 +98,52 @@ def check_virustotal(file_hash = None, url = None):
     try:
         with vt.Client(VIRUSTOTAL_API_KEY) as client:
             if url:
-                url_id = vt.url_id(url)  
+                url_id = vt.url_id(url)
                 obj = client.get_object("/urls/{}", url_id)
             else:
-                obj = client.get_object("/files/{}", file_hash) 
-
+                obj = client.get_object("/files/{}", file_hash)
 
             stats = obj.last_analysis_stats
-            if stats is None:  
+            if stats is None:
                 return {
                     "status": "error",
-                    "flags": ["unexpected_format"],
+                    "reason": "unexpected_format",
                     "meta": {"resource": resource}
                 }
 
             return {
                 "status": "ok",
-                "flags": [],
+                "reason": None,
                 "meta": {**stats, "resource": resource}
             }
 
     except vt.APIError as e:
-        err = (e.code or "").lower()
+        err_code = (getattr(e, 'code', '') or "").lower().replace("error", "").strip("_")
 
-        # 1. Resource not found in VirusTotal
-        if err == "not_found_error":
+        if err_code == "notfound":
             return {
                 "status": "not_found",
-                "flags": ["not_found"],
+                "reason": "not_found",
                 "meta": {"resource": resource, "error": str(e)}
             }
 
-        # 2. API key missing, invalid or forbidden
-        elif err in ("authentication_required_error", "forbidden"):
+        elif err_code in ("authenticationrequired", "forbidden"):
             return {
                 "status": "auth_error",
-                "flags": ["invalid_api_key"],
+                "reason": "invalid_api_key",
                 "meta": {"resource": resource, "error": str(e)}
             }
 
-        # 3. Rate limits or quota exceeded
-        elif err in ("quota_exceeded_error", "rate_limit_error"):
+        elif err_code in ("quotaexceeded", "ratelimit"):
             return {
                 "status": "rate_limited",
-                "flags": ["rate_limited"],
+                "reason": "rate_limited",
                 "meta": {"resource": resource, "error": str(e)}
             }
 
-        # 4. Any other API error
         else:
             return {
                 "status": "error",
-                "flags": [err or "api_error"],
+                "reason": err_code or "api_error",
                 "meta": {"resource": resource, "error": str(e)}
             }
