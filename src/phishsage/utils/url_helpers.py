@@ -1,46 +1,73 @@
-import requests
-import idna
 import math
-import tldextract
+import re
 from collections import Counter
+from urllib.parse import urlparse, urlunparse
+
+import requests
+import tldextract
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
+
 from phishsage.config.loader import MAX_REDIRECTS
 
 
 def normalize_url(url):
-    return url if url.startswith("http") else f"https://{url}"
+    url = url.strip()
+    if not url:
+        return ""
+    
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url.lstrip("/")
+        
+    
+    url = re.sub(r"(https?://)/+", r"\1", url)
+    
+    parsed = urlparse(url)
+    if not parsed.netloc:
+        return ""
+    
+    normalized = urlunparse((
+        "https",
+        parsed.netloc.lower(),
+        parsed.path or "/",
+        parsed.params,
+        parsed.query,
+        parsed.fragment
+    ))
+    
+    return normalized
 
 
 def get_hostname(url):
-    hostname = urlparse(normalize_url(url)).hostname or ""
     try:
-        hostname = hostname.encode('utf-8').decode('idna')
+        parsed = urlparse(normalize_url(url))
+        raw_hostname = parsed.hostname
+        if not raw_hostname:
+            return ""
+        
+        punycode_hostname = raw_hostname.encode('idna').decode('ascii')
+        return punycode_hostname.lower()  # lowercase the ASCII form
     except Exception:
-        pass
-    return hostname.lower()
-
+        return ""
 
 def extract_domain_parts(url):
     hostname = get_hostname(url)
-    extracted = tldextract.extract(hostname)
-    return extracted.domain + '.' + extracted.suffix, extracted.domain, extracted.subdomain, extracted.suffix
+    if not hostname:
+        return None, None, None, None
 
+    extracted = tldextract.extract(hostname)
+    registered = extracted.domain + '.' + extracted.suffix
+    if not registered:  
+        return None, None, None, None
+    
+    return registered, extracted.domain, extracted.subdomain, extracted.suffix
 
 def shannon_entropy(s):
-    """
-    Calculate Shannon entropy of a string.
-    A higher entropy indicates more randomness (less human-readable).
-    """
     if not s:
         return 0.0
+    prob = Counter(s).values()
+    prob = [p / len(s) for p in prob]
+    return -sum(p * math.log2(p) for p in prob)
 
-    counts = Counter(s)
-    length = len(s)
-
-    # Shannon Entropy formula: -Σ (p_i * log2(p_i))
-    entropy = -sum((count / length) * math.log2(count / length) for count in counts.values())
-    return round(entropy, 3)
 
 
 def extract_links(html_body):
@@ -58,6 +85,7 @@ def extract_links(html_body):
 
     unique_links = list(dict.fromkeys(links))
     return unique_links
+
 
 def get_redirect_chain(url, max_redirects=MAX_REDIRECTS):
     try:
