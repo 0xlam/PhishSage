@@ -79,51 +79,52 @@ def handle_attachments(args, mail):
         results = process_attachments(mail, action="scan")
 
         if args.json:
-            for info in results.values():
-                vt = info.get("virustotal", {})
-                meta = vt.get("meta", {})
-                #remove unwanted keys
-                for key in ["timeout", "confirmed-timeout", "failure", "type-unsupported"]:
-                    meta.pop(key, None)
-                #remove empty flags
-                if "flags" in vt and not vt["flags"]:
-                    vt.pop("flags")
+            cleaned_results = {}
 
-            json_output["virustotal_scan"] = results or {}
+            for name, info in results.items():
+                vt = info.get("virustotal", {})
+
+            vt_clean = {}
+
+            for k, v in vt.items():
+                if k == "reason":
+                    continue  # ← drop reason 
+
+                vt_clean[k] = v
+
+
+            cleaned_results[name] = {
+                "sha256": info.get("sha256"),
+                "virustotal": vt_clean
+            }
+    
+            json_output["virustotal_scan"] = cleaned_results or {}
+
 
         else:
-            #remove unwanted keys and empty flags
-            for info in results.values():
-                vt = info.get("virustotal", {})
-                meta = vt.get("meta", {})
-
-                for key in ["timeout", "confirmed-timeout", "failure", "type-unsupported"]:
-                    meta.pop(key, None)
-                if "flags" in vt and not vt["flags"]:
-                    vt.pop("flags")
-
             print("\n🧪 VirusTotal Scan (Attachments)\n" + "=" * 60)
+
             if not results:
                 print("  None\n")
             else:
                 for filename, info in results.items():
-                    print(f"{filename}:")
-                    print(f"  SHA256: {info['sha256']}")
                     vt = info.get("virustotal", {})
 
-                    if not vt:
-                        print("  ⚠️  No VT response")
-                    elif vt.get("status") != "ok":
-                        # Display flags and any error messages from meta
-                        flags = ", ".join(vt.get("flags", []))
-                        errors = ", ".join(str(v) for k, v in vt.get("meta", {}).items() if "error" in k.lower())
-                        print(f"  ⚠️  Status: {vt.get('status')}" + (f", Flags: {flags}" if flags else "") + (f", Errors: {errors}" if errors else ""))
-                    else:
-                        meta = vt.get("meta", {})
-                        stats_display = ", ".join(f"{k.capitalize()}: {v}" for k, v in meta.items())
-                        print(f"  🧪 VT Stats → {stats_display}")
+                    print(f"- {filename}")
+                    print(f"    SHA256: {info.get('sha256')}")
+
+                    status = vt.get("status", "unknown")
+                    print(f"    Status: {status}")
+
+                    stats = vt.get("stats") or {}
+
+                    print(f"    Stats:")
+                    for k, v in stats.items():
+                        print(f"      {k}: {v}")
+
                     print()
 
+                    
     # === 5. YARA Scan (single rule) ===
     if args.yara:
         
@@ -230,15 +231,35 @@ def handle_links(args, mail):
         vt_results = {url: scan_with_virustotal(url) for url in web_urls}
 
         if args.json:
-            # Strip out 'flag' and 'flags' for JSON output
-            json_output["virustotal_scan"] = {url: {"meta": res["meta"]} for url, res in vt_results.items()}
+
+            for url, result in vt_results.items():
+                meta = result.get("meta") or {}
+                stats = (meta.get("stats") or {}).copy()
+
+                stats.pop("resource", None)
+
+                json_output["virustotal_scan"][url]  = {
+                    "meta": {
+                        "status": meta["status"],
+                        "stats": stats  
+                    }
+                }
 
         else:
             print("\n🧪 VirusTotal Scan (Links)\n" + "=" * 60)
             for url, result in vt_results.items():
+
+                meta = result.get("meta") or  {}
+                stats = (meta.get("stats") or  {}).copy()
+                
+                # Strip redundant field
+                stats.pop("resource", None)
+
                 print(f"- {url}")
-                print(f"    Status: {result['meta']['status']}")
-                print(f"    Stats: {result['meta']['stats']}")
+                print(f"    Status: {meta.get('status', 'unknown')}")
+                print(f"    Stats:")
+                for k, v in stats.items():
+                    print(f"      {k}: {v}")
                 print()
 
     # === 3. Redirect Chain Analysis ===
@@ -351,4 +372,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
