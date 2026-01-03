@@ -205,7 +205,7 @@ PhishSage stores configuration values in the project config (`config.toml`) or e
   * **Focused functionality:** PhishSage is not a full mail forensic suite. It prioritizes heuristics, quick triage, and enrichment over deep forensic analysis.
   * **Network-dependent checks:** WHOIS, VirusTotal, MX, and SSL inspections rely on external services; results may vary or fail due to connectivity issues or API limits.
   * **Attachment processing:** Currently limited to listing, extraction, hashing, and optional VirusTotal scans. Full heuristic attachment analysis will be introduced in a future release.
-  * **Output formats:** JSON output is available for `headers` and `links` modes. The `attachment` mode produces human-readable summaries only.
+  * **Output formats:** JSON output is available for all  modes. 
   * **Intended use:** Designed for investigative support and enrichment. Not intended for automated blocking or enforcement in production email systems.
   * **Evolving coverage:** Current checks under each section are limited; additional heuristics and enhanced analyses will be added in future releases.
 
