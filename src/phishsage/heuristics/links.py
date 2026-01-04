@@ -94,39 +94,33 @@ def analyze_certificate(url):
         return {
             "flags": True,
             "reason": ["ssl_handshake_timeout"],
-            "meta": {
-                "hostname": hostname,
-            }      
+            "meta": {"hostname": hostname, "error": str(e)}    
         }
 
     except ssl.SSLError as e:
-        msg = str(e)
+        msg = str(e).upper()
+        reason = []
 
         if "CERTIFICATE_VERIFY_FAILED" in msg:
-            reason = "certificate verification failed"
+            reason = ["certificate verification failed"]
         elif "WRONG_VERSION_NUMBER" in msg:
-            reason = "tls_protocol_mismatch"
+            reason = ["tls_protocol_mismatch"]
         elif "HANDSHAKE_FAILURE" in msg:
-            reason = "handshake_failure"
+            reason = ["handshake_failure"]
         else:
-            reason = "ssl_error"
+            reason = ["ssl_error"]
 
         return {
             "flags": True,
             "reason": reason,
-            "meta": {
-                "hostname": hostname,
-            }
-            
+            "meta": {"hostname": hostname, "error": str(e)}
         }
 
     except Exception as e:
         return {
             "flags": True,
-            "reason": ["unhandled_error"],
-            "meta": {
-                "hostname" : hostname
-            }
+            "reason": ["unhandled_exception"],
+            "meta": {"hostname": hostname, "error": str(e)}
         }
 
 
@@ -172,8 +166,8 @@ def domain_entropy(url, entropy_threshold = ENTROPY_THRESHOLD):
 
     except Exception as e:
         return {
-            "flags": False,
-            "reason": ["unexpected_error"],
+            "flags": True,
+            "reason": ["entropy_calculation_failed"],
             "meta": {
                 "registered_domain": None,
                 "domain_label": None,
@@ -181,8 +175,8 @@ def domain_entropy(url, entropy_threshold = ENTROPY_THRESHOLD):
                 "subdomain_entropy": None,
                 "domain_entropy": None,
                 "entropy_threshold": entropy_threshold,
-                "error": str(e), 
-            },     
+                "error": str(e)
+            }   
         }
 
 
@@ -209,7 +203,6 @@ def has_suspicious_tld(url):
         flag = is_known_suspicious or is_punycode
         
         reason = []
-
         if is_known_suspicious:
             reason.append("known_suspicious_tld")
 
@@ -228,8 +221,8 @@ def has_suspicious_tld(url):
 
     except Exception as e:
         return {
-            "flags": False,
-            "reason": ["unexpected_error"],
+            "flags": True,
+            "reason": ["tld_check_failed"],
             "meta": {
                 "registered_domain": None,
                 "public_suffix": None,
@@ -245,7 +238,7 @@ def is_ip_url(url):
         
         if not hostname:
             return {
-                "flags": False,
+                "flags": True,
                 "reason": ["no_hostname_extracted"],
                 "meta": {
                     "registered_domain": None,
@@ -272,7 +265,7 @@ def is_ip_url(url):
             
             return {
                 "flags": False,
-                "reason": ["none"],
+                "reason": [],
                 "meta": {
                     "registered_domain": registered_domain,
                     "hostname": hostname,
@@ -281,8 +274,8 @@ def is_ip_url(url):
 
     except Exception as e:
         return {
-            "flags": False,
-            "reason": ["unexpected_error"],
+            "flags": True,
+            "reason": ["ip_url_check_failed"],
             "meta": {
                 "registered_domain": None,
                 "hostname": None,
@@ -550,10 +543,9 @@ def domain_age(domain, threshold_young=THRESHOLD_YOUNG, threshold_expiring=THRES
         "flags": False,
         "reason": [],
         "meta": {
-            "domain": domain,
+            "registered_domain": domain,
             "age_days": None,
             "expiry_days_left": None,
-            "error": None,
         },
     }
 
@@ -600,7 +592,7 @@ def domain_age(domain, threshold_young=THRESHOLD_YOUNG, threshold_expiring=THRES
     except Exception as e:
         err_msg = str(e).splitlines()[0] if str(e) else "Unknown WHOIS error"
         result["flags"] = True
-        result["reason"].append("whois_error")
+        result["reason"].append("whois_lookup_failed")
         result["meta"]["error"] = err_msg
 
     return result
