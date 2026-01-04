@@ -57,7 +57,7 @@ def analyze_certificate(url):
             default_backend()
         )
 
-        now = datetime.now(datetime.timezone.utc)
+        now = datetime.now(timezone.utc)
         valid_from = cert.not_valid_before_utc
         valid_to = cert.not_valid_after_utc
 
