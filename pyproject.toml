@@ -44,16 +44,12 @@ dependencies = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: System Administrators",
-    "Intended Audience :: Information Security Professionals",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Topic :: Security",
-    "Topic :: Security :: Monitoring",
-    "Topic :: Security :: Analysis",
-    "Topic :: Security :: Intrusion Detection",
 ]
 
 
@@ -74,4 +70,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
-local_scheme = "node-and-date"
+local_scheme = "no-local-version"
