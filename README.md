@@ -55,7 +55,29 @@ PhishSage is intentionally minimal and concentrates on these essential capabilit
 
 ---
 
-## 2. CLI Usage
+## 2. Environment Setup
+
+```bash
+# 1. (Optional) Create and activate a virtual environment
+python3 -m venv venv
+
+# Linux / macOS
+source venv/bin/activate
+
+# Windows (PowerShell)
+venv\Scripts\Activate.ps1
+
+# 2. Install PhishSage from PyPI
+pip install phishsage
+
+# 3. (Optional) Set VirusTotal API key
+export VIRUSTOTAL_API_KEY="your_virustotal_api_key"     # Linux/macOS
+
+# Windows (PowerShell)
+# setx VIRUSTOTAL_API_KEY "your_virustotal_api_key"
+```
+
+## 3. CLI Usage
 
 PhishSage provides a command-line interface with three main modes: `headers`, `attachment`, and `links`. The `headers` and `links` modes output results in JSON format, while the `attachment` mode produces human-readable summaries only.
 
@@ -149,36 +171,6 @@ options:
   --heuristics         Run phishing heuristics on extracted URLs
   --include-redirects  Include redirect chain when running heuristics (ignored if --heuristics not used)
   --json               Output results in raw JSON format
-```
-
-
----
-
-## 3. Environment Setup
-
-```bash
-# 1. Clone
-git clone https://github.com/0xlam/PhishSage.git
-cd PhishSage
-
-# 2. Create and activate virtual environment
-python3 -m venv venv
-
-# Linux / macOS
-source venv/bin/activate
-
-# Windows (PowerShell)
-venv\Scripts\Activate.ps1
-
-## 3. Install the Package in Editable Mode
-pip install -e .
-
-
-# 4. (Optional) Set VirusTotal API key
-export VIRUSTOTAL_API_KEY="your_virustotal_api_key"     # Linux/macOS
-
-# Windows (PowerShell)
-# setx VIRUSTOTAL_API_KEY "your_virustotal_api_key"
 ```
 
 ---
