@@ -1,7 +1,7 @@
 [project]
 name = "phishsage"
 dynamic = ["version"]
-description = "Lightweight toolkit for email triage and phishing analysis. Extracts headers, attachments, and links, applies heuristic checks, and produces structured insights."
+description = "Lightweight email triage and phishing-analysis toolkit. Extracts headers, attachments, and links, applies heuristic checks, and produces structured insights."
 readme = "README.md"
 keywords = ["phishing", "email-security", "SOC", "SIEM", "threat-intelligence", "email-analysis", "cybersecurity", "phish-detection", "incident-response"]
 requires-python = ">=3.9"
