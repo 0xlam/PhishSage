@@ -1,9 +1,9 @@
 [project]
 name = "phishsage"
 dynamic = ["version"]
-description = "Email phishing analysis toolkit"
+description = "Lightweight toolkit for email triage and phishing analysis. Extracts headers, attachments, and links, applies heuristic checks, and produces structured insights."
 readme = "README.md"
-keywords = ["phishing", "email-security", "SOC", "SIEM", "threat-intelligence", "email-analysis"]
+keywords = ["phishing", "email-security", "SOC", "SIEM", "threat-intelligence", "email-analysis", "cybersecurity", "phish-detection", "incident-response"]
 requires-python = ">=3.9"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -42,15 +42,20 @@ dependencies = [
 ]
 
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Information Technology",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Security Professionals",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Security",
-    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: Security :: Monitoring",
+    "Topic :: Security :: Analysis",
+    "Topic :: Security :: Intrusion Detection",
 ]
+
 
 [project.scripts]
 phishsage = "phishsage.main:main"
