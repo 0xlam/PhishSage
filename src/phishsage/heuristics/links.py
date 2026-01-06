@@ -15,7 +15,7 @@ from urllib.parse import urlparse, parse_qs
 from phishsage.config.loader import (
     SUSPICIOUS_TLDS,
     SHORTENERS,
-    FREE_HOSTING_PROVIDERS,
+    ABUSABLE_PLATFORM_DOMAINS,
     SUBDOMAIN_THRESHOLD,
     ENTROPY_THRESHOLD,
     MAX_PATH_DEPTH,
@@ -406,8 +406,8 @@ def is_shortened_url(url):
 
 
 
-def uses_free_hosting_domain(url):
-    """Detect whether a URL uses a known free or cheap hosting provider."""
+def uses_abusable_platform(url):
+    """Detect whether a URL uses a commonly abused web platform or service."""
     try:
         registered_domain, _, _, _ = extract_domain_parts(url)
 
@@ -417,41 +417,39 @@ def uses_free_hosting_domain(url):
                 "reason": ["no_registered_domain"],
                 "meta": {
                     "registered_domain": None,
-                    "matched_provider": None,
+                    "matched_platform": None,
                 },
             }
 
         registered_domain = registered_domain.lower()
-        providers = [d.lower() for d in FREE_HOSTING_PROVIDERS]
+        platforms = [d.lower() for d in ABUSABLE_PLATFORM_DOMAINS]
 
-        matched_provider = next(
+        matched = next(
             (
-                provider
-                for provider in providers
-                if registered_domain == provider
-                or registered_domain.endswith("." + provider)
+                p for p in platforms
+                if registered_domain == p
+                or registered_domain.endswith("." + p)
             ),
             None,
         )
 
-        is_free_hosting = matched_provider is not None
 
         return {
-            "flags": is_free_hosting,
-            "reason": ["free_hosting_provider"] if is_free_hosting else [],
+            "flags": matched is not None,
+            "reason": ["abusable_platform"] if matched else [],
             "meta": {
                 "registered_domain": registered_domain,
-                "matched_provider": matched_provider,
+                "matched_platform": matched,
             },
         }
 
     except Exception as e:
         return {
             "flags": True,
-            "reason": ["free_hosting_check_failed"],
+            "reason": ["abusable_platform_check_failed"],
             "meta": {
                 "registered_domain": None,
-                "matched_provider": None,
+                "matched_platform": None,
                 "error": str(e),
             },
         }
