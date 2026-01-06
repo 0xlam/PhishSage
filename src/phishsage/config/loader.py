@@ -44,7 +44,7 @@ SUSPICIOUS_TLDS = set(HEURISTICS.get("suspicious_tlds", []))
 SHORTENERS = set(HEURISTICS.get("shorteners", []))
 FREE_EMAIL_DOMAINS = set(HEURISTICS.get("free_email_domains", []))
 TRIVIAL_SUBDOMAINS = set(HEURISTICS.get("trivial_subdomains", []))
-FREE_HOSTING_PROVIDERS= set(HEURISTICS.get("free_hosting_providers", []))
+ABUSABLE_PLATFORM_DOMAINS= set(HEURISTICS.get("abusable_platform_domains", []))
 
 
 SUBDOMAIN_THRESHOLD = HEURISTICS.get("subdomain_threshold", 3)

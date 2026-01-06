@@ -36,7 +36,7 @@ free_email_domains = [
     "mail.ru"
 ]
 
-free_hosting_providers = [
+abusable_platform_domains = [
     'neocities.org', '6te.net', 'jimdosite.com', 'framer.app', 'webflow.io',
     'typedream.app', 'repl.co', 'webnode.page', 'epizy.com', 'onrender.com',
     'workers.dev', 'overblog.com', 'gitlab.io', 'wixsite.com', 'pages.dev',
