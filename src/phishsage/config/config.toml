@@ -29,11 +29,18 @@ shorteners = [
     
 ]
 
-free_email_domains = [
-    "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "live.com",
-    "protonmail.com", "pm.me", "aol.com", "icloud.com", "zoho.com", "gmx.com",
-    "yandex.com", "mail.com", "tutanota.com", "fastmail.com", "hushmail.com",
-    "mail.ru"
+free_email_domains = [   
+    'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'live.com',
+    'msn.com', 'aol.com', 'icloud.com', 'me.com', 'mac.com', 'protonmail.com',
+    'proton.me', 'pm.me','tutanota.com', 'tuta.com', 'tutanota.de', 'keemail.me',
+    'cock.li', 'riseup.net', 'gmx.com', 'gmx.de', 'gmx.net', 'web.de',
+    't-online.de', 'mail.com', 'laposte.net', 'libero.it', 'virgilio.it',
+    'tiscali.it', 'seznam.cz', 'onet.pl', 'wp.pl', 'mail.ru', 'yandex.com', 'yandex.ru',
+    'rambler.ru', 'bk.ru', 'inbox.ru', 'list.ru', 'internet.ru', '163.com',
+    '126.com', 'qq.com', 'foxmail.com', 'sina.com', 'sohu.com', 'naver.com', 
+    'daum.net', 'hanmail.net', 'yahoo.co.jp', 'rediffmail.com', 'zoho.com',
+    'zoho.eu', 'yopmail.com', 'mailinator.com', 'guerrillamail.com', 'sharklasers.com',
+    'gmrt.net', 'temp-mail.org', '10minutemail.com'
 ]
 
 abusable_platform_domains = [
@@ -45,7 +52,9 @@ abusable_platform_domains = [
     'infinityfreeapp.com', 'byet.host', 'cloudflarepages.com', 'site123.me',
     'carrd.co', 'netlify.app', 'blogspot.com', 'web.app', 'webcindario.com',
     'linktr.ee', 'rf.gd', 'surge.sh', 'github.io', 'tiiny.app', 'framer.media',
-    'hatenablog.com', 'firebaseapp.com', 'azurewebsites.net', 'wordpress.com', 'webadorsite.com'
+    'hatenablog.com', 'firebaseapp.com', 'azurewebsites.net', 'wordpress.com',
+    'appspot.com','plesk.page','swtest.ru','tmweb.ru', 'dnsduck.org',
+    'webadorsite.com', 'yolasite.com', 'hpage.com', 'lovable.app'
 ]
 
 
