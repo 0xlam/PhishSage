@@ -615,7 +615,7 @@ def scan_with_virustotal(url, throttle=1.0):
         if status != "ok":
             return {
                 "flags": False if status == "not_found" else True,
-                "reason": [reason_from_vt] if reason_from_vt else [f"vt_{status}"],
+                "reason": [f"vt_{reason_from_vt}"] if reason_from_vt else [f"vt_{status}"],
                 "meta": {
                     "status": status,
                     "stats": None,
