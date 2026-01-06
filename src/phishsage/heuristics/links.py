@@ -687,7 +687,7 @@ def run_link_heuristics(urls, vt_throttle=1.0, include_redirects=False):
                 "shortened_url": is_shortened_url(normalized_url),
                 "numeric_domain": is_numeric_domain(normalized_url),
                 "excessive_path": excessive_path_depth(normalized_url),
-                "free_hosting": uses_free_hosting_domain(normalized_url),
+                "abusable_platform": uses_abusable_platform(normalized_url),
             }
 
             # --- Entropy ---
