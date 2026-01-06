@@ -19,9 +19,10 @@ PhishSage is intentionally minimal and concentrates on these essential capabilit
   * Parses SPF, DKIM, and DMARC results from Authentication-Results
   * Performs alignment checks across From, Reply-To, and Return-Path
   * Validates Message-ID domain consistency
-  * Checks timestamp sanity: Date header vs first Received hop
-  * Looks up WHOIS domain age and flags newly registered domains
-  * Validates MX records for the From domain
+  * Detects use of free email providers in Reply-To and Return-Path headers
+  * Checks timestamp sanity by comparing the Date header with the first Received hop
+  * Looks up WHOIS domain age and flags newly registered or soon-to-expire domains
+  * Validates MX records for sender-related domains
   * Queries Spamhaus DBL for sender-related domains
   * Aggregates all findings into structured JSON with merged alerts
 
@@ -49,16 +50,18 @@ PhishSage is intentionally minimal and concentrates on these essential capabilit
   * VirusTotal URL lookup for threat intelligence
   * Optional redirect-chain tracing to uncover hidden destinations
   * Checks for numeric-only registrable domains
-  * Detects URLs hosted on free or cheap hosting platforms
+  * Detects URLs using commonly abused web platforms and services
   * Flags URLs with excessively deep paths
 
 
 ---
 
-## 2. Environment Setup
+## 2. Installation
 
 ```bash
-# 1. (Optional) Create and activate a virtual environment
+# Option A: Install from GitHub
+git clone https://github.com/0xlam/PhishSage.git
+cd PhishSage
 python3 -m venv venv
 
 # Linux / macOS
@@ -67,19 +70,27 @@ source venv/bin/activate
 # Windows (PowerShell)
 venv\Scripts\Activate.ps1
 
-# 2. Install PhishSage from PyPI
+pip install -e .
+
+# ---------------------------------------------------
+
+# Option B: Install from PyPI
 pip install phishsage
 
-# 3. (Optional) Set VirusTotal API key
-export VIRUSTOTAL_API_KEY="your_virustotal_api_key"     # Linux/macOS
+# ---------------------------------------------------
+
+# (Optional) Configure VirusTotal API key
+# Linux / macOS
+export VIRUSTOTAL_API_KEY="your_virustotal_api_key"
 
 # Windows (PowerShell)
-# setx VIRUSTOTAL_API_KEY "your_virustotal_api_key"
+setx VIRUSTOTAL_API_KEY "your_virustotal_api_key"
+
 ```
 
 ## 3. CLI Usage
 
-PhishSage provides a command-line interface with three main modes: `headers`, `attachment`, and `links`. The `headers` and `links` modes output results in JSON format, while the `attachment` mode produces human-readable summaries only.
+PhishSage provides a command-line interface with three main modes: `headers`, `attachments`, and `links`. The `headers` and `links` modes output results in JSON format, while the `attachments` mode produces human-readable summaries only.
 
 
 ### Main Help
@@ -91,14 +102,14 @@ phishsage -h
 **Output:**
 
 ```
-usage: phishsage [-h] {headers,attachment,links} ...
+usage: phishsage [-h] {headers,attachments,links} ...
 
 PhishSage
 
 positional arguments:
-  {headers,attachment,links}
+  {headers,attachments,links}
     headers             Analyze email headers for anomalies or indicators
-    attachment          Analyze or extract attachments
+    attachments         Analyze or extract attachments
     links               Analyze links in email content
 
 options:
@@ -130,13 +141,13 @@ options:
 ### Attachment Processing
 
 ```bash
-phishsage attachment -h
+phishsage attachments -h
 ```
 
 **Options:**
 
 ```
-usage: phishsage attachment -f FILE [--list] [--extract DIR] [--hash] [--scan] [--yara PATH [PATH ...]] [--yara-verbose] [--json]
+usage: phishsage attachments -f FILE [--list] [--extract DIR] [--hash] [--scan] [--yara PATH [PATH ...]] [--yara-verbose] [--json]
 
 options:
   -h, --help              show this help message and exit
@@ -182,7 +193,7 @@ PhishSage stores configuration values in the project config (`config.toml`) or e
   * `VIRUSTOTAL_API_KEY` — API key for VirusTotal scans.
   * `MAX_REDIRECTS` — Maximum number of redirects to follow when checking redirect chains.
   * `THRESHOLD_YOUNG`, `THRESHOLD_EXPIRING` — Domain age/expiry thresholds (in days). Domains younger than `THRESHOLD_YOUNG` or expiring within `THRESHOLD_EXPIRING` days are flagged as potentially suspicious.
-  * `FREE_HOSTING_PROVIDERS`, `SUSPICIOUS_TLDS`, `SHORTENERS` — Heuristic lists used in URL/link analysis.
+  * `ABUSABLE_PLATFORM_DOMAINS`, `SUSPICIOUS_TLDS`, `SHORTENERS` — Heuristic lists used in URL/link analysis.
   * `SUBDOMAIN_THRESHOLD`, `TRIVIAL_SUBDOMAINS` — Used for subdomain heuristics to identify excessive or meaningful subdomains.
   * `FREE_EMAIL_DOMAINS` — Free email providers that may indicate disposable or less-trusted addresses.
   * `DATE_RECEIVED_DRIFT_MINUTES` — Maximum allowed difference between the `Date` header and the first `Received` hop in email headers.
