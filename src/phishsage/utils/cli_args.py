@@ -23,7 +23,7 @@ def get_parser():
     headers_parser.add_argument( "--json", action="store_true", help='Output results in raw JSON format')
 
     #----ATTACHMENTS----
-    attach_parser = subparsers.add_parser('attachment',
+    attach_parser = subparsers.add_parser('attachments',
         parents=[common],
         help='Analyze or extract attachments')
     attach_parser.add_argument('--list', action='store_true', help='List attachments only')
