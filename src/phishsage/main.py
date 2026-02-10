@@ -4,14 +4,15 @@ from phishsage.utils.cli_args import get_parser
 from phishsage.utils.header_parser import extract_mail_headers
 from phishsage.utils.attachments import process_attachments
 from phishsage.utils.url_helpers import get_redirect_chain, extract_links
-from phishsage.heuristics.links import LinkHeuristics
-from phishsage.heuristics.headers import run_headers_heuristics
+from phishsage.heuristics import LinkHeuristics, HeaderHeuristics
 from phishsage.utils.url_parser import parse_url
 
 
 def handle_headers(args, headers):
     if args.heuristics:
-        heuristics_result = run_headers_heuristics(headers)
+
+        checker = HeaderHeuristics()
+        heuristics_result = checker.run_headers_heuristics(headers)
 
         if args.json:
             print(json.dumps(heuristics_result, indent=None, sort_keys=False))
@@ -274,7 +275,7 @@ def handle_links(args, mail):
             print("\n🔗 Redirect Chain Analysis\n" + "=" * 60)
 
         for url in web_urls:
-            info = get_redirect_chain(url)
+            info = get_redirect_chain(parse_url(url))
 
             if info.get("error"):
                 error_msg = info["error"].split(":")[0]
