@@ -14,26 +14,27 @@ def normalize_url(url):
     url = url.strip()
     if not url:
         return ""
-    
+
     if not url.startswith(("http://", "https://")):
         url = "https://" + url.lstrip("/")
-        
-    
+
     url = re.sub(r"(https?://)/+", r"\1", url)
-    
+
     parsed = urlparse(url)
     if not parsed.netloc:
         return ""
-    
-    normalized = urlunparse((
-        "https",
-        parsed.netloc.lower(),
-        parsed.path or "/",
-        parsed.params,
-        parsed.query,
-        parsed.fragment
-    ))
-    
+
+    normalized = urlunparse(
+        (
+            "https",
+            parsed.netloc.lower(),
+            parsed.path or "/",
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
+
     return normalized
 
 
@@ -43,11 +44,12 @@ def get_hostname(url):
         raw_hostname = parsed.hostname
         if not raw_hostname:
             return ""
-        
-        punycode_hostname = raw_hostname.encode('idna').decode('ascii')
+
+        punycode_hostname = raw_hostname.encode("idna").decode("ascii")
         return punycode_hostname.lower()  # lowercase the ASCII form
     except Exception:
         return ""
+
 
 def extract_domain_parts(url):
     hostname = get_hostname(url)
@@ -55,11 +57,12 @@ def extract_domain_parts(url):
         return None, None, None, None
 
     extracted = tldextract.extract(hostname)
-    registered = extracted.domain + '.' + extracted.suffix
-    if not registered:  
+    registered = extracted.domain + "." + extracted.suffix
+    if not registered:
         return None, None, None, None
-    
+
     return registered, extracted.domain, extracted.subdomain, extracted.suffix
+
 
 def shannon_entropy(s):
     if not s:
@@ -69,15 +72,14 @@ def shannon_entropy(s):
     return -sum(p * math.log2(p) for p in prob)
 
 
-
 def extract_links(html_body):
     if not html_body.strip():
         return []
-    
+
     soup = BeautifulSoup(html_body, "html.parser")
     links = []
 
-    for anchor in soup.find_all("a",href=True):
+    for anchor in soup.find_all("a", href=True):
         href = anchor.get("href", "").strip()
 
         if href:
@@ -87,7 +89,10 @@ def extract_links(html_body):
     return unique_links
 
 
-def get_redirect_chain(url, max_redirects=MAX_REDIRECTS):
+def get_redirect_chain(parsed, max_redirects=MAX_REDIRECTS):
+
+    url = parsed.normalized
+
     try:
         session = requests.Session()
         session.max_redirects = max_redirects
@@ -105,7 +110,7 @@ def get_redirect_chain(url, max_redirects=MAX_REDIRECTS):
             "final_url": final_url,
             "final_status": response.status_code,
             "redirect_count": redirect_count,
-            "redirected": redirect_count > 0
+            "redirected": redirect_count > 0,
         }
 
     except requests.exceptions.TooManyRedirects:
@@ -115,7 +120,7 @@ def get_redirect_chain(url, max_redirects=MAX_REDIRECTS):
             "redirect_chain": [],
             "status_codes": [],
             "redirect_count": max_redirects,
-            "redirected": True
+            "redirected": True,
         }
 
     except requests.exceptions.RequestException as e:
@@ -125,6 +130,5 @@ def get_redirect_chain(url, max_redirects=MAX_REDIRECTS):
             "redirect_chain": [],
             "status_codes": [],
             "redirect_count": 0,
-            "redirected": False
+            "redirected": False,
         }
-

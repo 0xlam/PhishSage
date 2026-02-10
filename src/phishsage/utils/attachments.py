@@ -14,7 +14,8 @@ def safe_filename(name):
     base_name = os.path.basename(name)
 
     # Replace any characters not in the allowed set with underscores
-    return re.sub(r'[^\w_.-]', '_', base_name) 
+    return re.sub(r"[^\w_.-]", "_", base_name)
+
 
 def human_readable_size(num_bytes, decimal_places=2):
     """Convert bytes to a human-readable string (KB, MB, GB...)."""
@@ -26,7 +27,9 @@ def human_readable_size(num_bytes, decimal_places=2):
             return f"{num_bytes:.{decimal_places}f} {unit}"
     return f"{num_bytes:.{decimal_places}f} GB"
 
-#---------------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------------
+
 
 def parse_all_attachments(mail):
     """
@@ -50,11 +53,11 @@ def parse_all_attachments(mail):
 
 def parse_attachment(attachment):
     """Parse and validate a single attachment: decode from base64, detect MIME, extract metadata."""
-    filename = safe_filename(attachment.get('filename', 'unnamed'))
+    filename = safe_filename(attachment.get("filename", "unnamed"))
 
-    #Decode the base64-encoded file payload into raw bytes
+    # Decode the base64-encoded file payload into raw bytes
     try:
-        file_bytes = base64.b64decode(attachment['payload'])
+        file_bytes = base64.b64decode(attachment["payload"])
     except Exception as e:
         return {"error": f"Invalid base64 payload for {filename}: {e}"}
 
@@ -64,13 +67,13 @@ def parse_attachment(attachment):
     except Exception as e:
         return {"error": f"Cannot determine file type for {filename}: {e}"}
 
-    #Extract file extension and and calculate file size
+    # Extract file extension and and calculate file size
     ext = os.path.splitext(filename)[1].lower()
     size_bytes = len(file_bytes)
     size_human = human_readable_size(size_bytes)
 
     # Check actual detected type
-    guessed_ext = mimetypes.guess_extension(mime_type) or ''
+    guessed_ext = mimetypes.guess_extension(mime_type) or ""
 
     # Return a dictionary with all parsed attachment metadata
     return {
@@ -80,8 +83,7 @@ def parse_attachment(attachment):
         "extension": ext,
         "detected_ext": guessed_ext,
         "size_bytes": size_bytes,
-        "size_human": size_human
-       
+        "size_human": size_human,
     }
 
 
@@ -144,11 +146,11 @@ def hash_attachments(parsed_attachments):
             continue
 
         file_bytes = parsed["file_bytes"]
-        
+
         hashed[parsed["filename"]] = {
             "md5": hashlib.md5(file_bytes).hexdigest(),
             "sha1": hashlib.sha1(file_bytes).hexdigest(),
-            "sha256": hashlib.sha256(file_bytes).hexdigest()
+            "sha256": hashlib.sha256(file_bytes).hexdigest(),
         }
 
     return hashed
@@ -168,7 +170,7 @@ def scan_attachments(parsed_attachments):
         vt_result = check_virustotal(file_hash=sha256)
 
         meta = vt_result.get("meta") or {}
-        stats = (meta.copy() if vt_result.get("status") == "ok" else {})
+        stats = meta.copy() if vt_result.get("status") == "ok" else {}
 
         # Remove VT-internal reference
         stats.pop("resource", None)
@@ -179,8 +181,8 @@ def scan_attachments(parsed_attachments):
             "virustotal": {
                 "status": vt_result.get("status"),
                 "reason": vt_result.get("reason"),
-                "stats": stats
-            }
+                "stats": stats,
+            },
         }
 
     return scanned
@@ -199,14 +201,17 @@ def yara_scan_attachments(parsed_attachments, rules_path, verbose=False):
         if path_obj.is_dir():
             # Recursively find all .yar/.yara files (case-insensitive)
             rule_files = [
-                str(p) for p in path_obj.rglob("*")
+                str(p)
+                for p in path_obj.rglob("*")
                 if p.is_file()
-                and p.suffix.lower() in {'.yar', '.yara'}
-                and not p.name.startswith('.')          # skip hidden files
-                and not p.name.endswith('~')            
+                and p.suffix.lower() in {".yar", ".yara"}
+                and not p.name.startswith(".")  # skip hidden files
+                and not p.name.endswith("~")
             ]
             if not rule_files:
-                return {"error": f"No .yar/.yara files found in directory: {rules_path}"}
+                return {
+                    "error": f"No .yar/.yara files found in directory: {rules_path}"
+                }
             rule_paths = rule_files
         else:
             # Single file
@@ -220,19 +225,24 @@ def yara_scan_attachments(parsed_attachments, rules_path, verbose=False):
             if path_obj.is_dir():
                 # Expand directory
                 dir_files = [
-                    str(p) for p in path_obj.rglob("*")
+                    str(p)
+                    for p in path_obj.rglob("*")
                     if p.is_file()
-                    and p.suffix.lower() in {'.yar', '.yara'}
-                    and not p.name.startswith('.')
-                    and not p.name.endswith('~')
+                    and p.suffix.lower() in {".yar", ".yara"}
+                    and not p.name.startswith(".")
+                    and not p.name.endswith("~")
                 ]
                 if not dir_files:
-                    return {"error": f"No .yar/.yara files found in directory passed in list: {item}"}
+                    return {
+                        "error": f"No .yar/.yara files found in directory passed in list: {item}"
+                    }
                 rule_paths.extend(dir_files)
             else:
                 rule_paths.append(str(path_obj))
     else:
-        return {"error": "rules_path must be a string, list of strings, or directory path"}
+        return {
+            "error": "rules_path must be a string, list of strings, or directory path"
+        }
 
     if not rule_paths:
         return {"error": "No valid YARA rule files provided"}
@@ -290,11 +300,13 @@ def yara_scan_attachments(parsed_attachments, rules_path, verbose=False):
                 match_dict["strings"] = []
                 for s in match.strings:
                     for inst in s.instances:
-                        match_dict["strings"].append({
-                            "name": s.identifier,
-                            "offset": hex(inst.offset),
-                            "data": inst.matched_data.hex()
-                        })
+                        match_dict["strings"].append(
+                            {
+                                "name": s.identifier,
+                                "offset": hex(inst.offset),
+                                "data": inst.matched_data.hex(),
+                            }
+                        )
 
             attachment_result["matches"].append(match_dict)
 
@@ -302,7 +314,7 @@ def yara_scan_attachments(parsed_attachments, rules_path, verbose=False):
 
         results[filename] = {
             "flag": attachment_result["flag"],
-            "matches": attachment_result["matches"]
+            "matches": attachment_result["matches"],
         }
 
     return results
@@ -315,7 +327,6 @@ def process_attachments(mail, action="list", **kwargs):
     Extra args (kwargs) are passed to the underlying function.
     """
     parsed = parse_all_attachments(mail)
-  
 
     if action == "list":
         return list_attachments(parsed)

@@ -5,11 +5,13 @@ from phishsage.utils.header_helpers import validate_and_normalize_email
 
 _ADDR_RE = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+")
 
+
 def _decode_header_value(value):
     try:
         return str(make_header(decode_header(value)))
     except Exception:
         return value
+
 
 def dirty_extract_email(raw_email_bytes):
     # Isolate headers
@@ -19,7 +21,7 @@ def dirty_extract_email(raw_email_bytes):
 
     # Try key headers
     for name in ("From", "Sender"):
-        m = re.search(fr"(?im)^{re.escape(name)}\s*:\s*(.+)$", headers)
+        m = re.search(rf"(?im)^{re.escape(name)}\s*:\s*(.+)$", headers)
         if not m:
             continue
         decoded = _decode_header_value(m.group(1).strip())

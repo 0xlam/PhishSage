@@ -11,8 +11,8 @@ def extract_sender_ip(mail):
         return None
 
     # Regex patterns for IPv4 and IPv6
-    ipv4_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
-    ipv6_pattern = r'\b(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\b'
+    ipv4_pattern = r"\b(?:\d{1,3}\.){3}\d{1,3}\b"
+    ipv6_pattern = r"\b(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\b"
 
     for hop in mail.received:
         header_from = hop.get("from", "")

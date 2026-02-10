@@ -16,9 +16,9 @@ def normalize_domain(domain):
     """Normalize domain: lowercase, strip trailing dot, IDNA-encode."""
     if not domain:
         return None
-    domain = domain.strip().lower().rstrip('.')
+    domain = domain.strip().lower().rstrip(".")
     try:
-        domain_ascii = idna.encode(domain).decode('ascii')
+        domain_ascii = idna.encode(domain).decode("ascii")
     except idna.IDNAError:
         return None
     return domain_ascii
@@ -41,7 +41,7 @@ def normalize_header_value(value):
 
 def validate_and_normalize_email(email):
     """Validate email with email_validator and return normalized email or None."""
-    if not email or '@' not in email:
+    if not email or "@" not in email:
         return None
     try:
         v = validate_email(email, allow_smtputf8=True, check_deliverability=False)
@@ -70,8 +70,8 @@ def extract_email(value):
         return email_addr
 
     regex = re.compile(
-        r'([a-zA-Z0-9._%+-]{1,64})@([a-zA-Z0-9-]{1,63}(?:\.[a-zA-Z0-9-]{1,63})+)',
-        re.ASCII
+        r"([a-zA-Z0-9._%+-]{1,64})@([a-zA-Z0-9-]{1,63}(?:\.[a-zA-Z0-9-]{1,63})+)",
+        re.ASCII,
     )
     match = regex.search(value)
     if not match:
@@ -83,11 +83,13 @@ def extract_email(value):
 
 def get_domain(email):
     """Extract and normalize domain part from a validated email."""
-    if not email or '@' not in email:
+    if not email or "@" not in email:
         return None
     try:
-        domain = email.split('@')[1]
-        return normalize_domain(tldextract.extract(domain).top_domain_under_public_suffix)
+        domain = email.split("@")[1]
+        return normalize_domain(
+            tldextract.extract(domain).top_domain_under_public_suffix
+        )
     except IndexError:
         return None
 
@@ -148,8 +150,8 @@ def earliest_received_date(received_headers):
     and returns the datetime closest to the sender.
     """
     for header in reversed(received_headers):
-        while '(' in header:
-            header = re.sub(r'\([^()]*\)', '', header)
+        while "(" in header:
+            header = re.sub(r"\([^()]*\)", "", header)
         match = re.search(DATE_PATTERN, header, re.VERBOSE)
         if match:
             date_str = match.group(0).strip()
@@ -158,6 +160,3 @@ def earliest_received_date(received_headers):
             except Exception:
                 return None
     return None
-
-
-

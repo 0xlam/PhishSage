@@ -11,12 +11,12 @@ from phishsage.utils.header_helpers import (
 from phishsage.utils.dirty_parser import dirty_extract_email
 from phishsage.utils.ip_analysis import extract_sender_ip
 
+# ------------------------------------------
 
-#------------------------------------------
 
 @dataclass
 class EmailHeaderInfo:
-    display_name:str
+    display_name: str
     from_address: str
     from_email: str
     from_domain: str
@@ -36,7 +36,7 @@ class EmailHeaderInfo:
     subject: str
     received_chain: list[str]
     mail_id: str
-    sender_ip: str 
+    sender_ip: str
 
 
 def parse_recipients(to_field):
@@ -44,14 +44,18 @@ def parse_recipients(to_field):
     if not to_field:
         return ""
 
-    addresses = {normalize_header_value(addr.strip()) for _, addr in to_field if addr and addr.strip()}
+    addresses = {
+        normalize_header_value(addr.strip())
+        for _, addr in to_field
+        if addr and addr.strip()
+    }
     return ",".join(sorted(addresses))
 
 
 def extract_mail_headers(mail: Any, raw_mail_bytes: Any) -> EmailHeaderInfo:
     headers = getattr(mail, "headers", {}) or {}
 
-     # --- FROM ---
+    # --- FROM ---
     from_address = normalize_header_value(headers.get("From", ""))
     from_email = extract_email(from_address) or dirty_extract_email(raw_mail_bytes)
     from_domain = get_domain(from_email)
@@ -61,7 +65,6 @@ def extract_mail_headers(mail: Any, raw_mail_bytes: Any) -> EmailHeaderInfo:
     to_email = parse_recipients(headers.get("To", ""))
     cc_email = parse_recipients(headers.get("Cc", ""))
     bcc_email = parse_recipients(headers.get("Bcc", ""))
-
 
     # --- REPLY-TO ---
     reply_to_address = normalize_header_value(headers.get("Reply-To", ""))
@@ -77,7 +80,7 @@ def extract_mail_headers(mail: Any, raw_mail_bytes: Any) -> EmailHeaderInfo:
     message_id = getattr(mail, "message-id", "")
     message_id_domain = ""
     if isinstance(message_id, str) and "@" in message_id:
-        _, domain = message_id.strip('<>').rsplit("@", 1)
+        _, domain = message_id.strip("<>").rsplit("@", 1)
         message_id_domain = get_domain(f"user@{domain}")
 
     # --- AUTH RESULTS ---
@@ -95,7 +98,7 @@ def extract_mail_headers(mail: Any, raw_mail_bytes: Any) -> EmailHeaderInfo:
         if isinstance(received_values, str):
             received_values = [received_values]
     received_chain = [normalize_header_value(h) for h in received_values]
-    #print(received_chain)
+    # print(received_chain)
 
     # --- SENDER IP ---
     sender_ip = extract_sender_ip(mail)
@@ -124,5 +127,5 @@ def extract_mail_headers(mail: Any, raw_mail_bytes: Any) -> EmailHeaderInfo:
         subject=subject,
         received_chain=received_chain,
         mail_id=mail_id,
-        sender_ip=sender_ip
+        sender_ip=sender_ip,
     )

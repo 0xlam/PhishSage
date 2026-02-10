@@ -1,10 +1,10 @@
 import vt
 import base64
 import requests
-from phishsage.config.loader import  VIRUSTOTAL_API_KEY
-
+from phishsage.config.loader import VIRUSTOTAL_API_KEY
 
 session = requests.Session()
+
 
 def safe_request(
     url,
@@ -17,7 +17,6 @@ def safe_request(
     verify=True,
     debug=False,
 ):
-  
 
     method = method.upper()
     try:
@@ -70,28 +69,19 @@ def safe_request(
     return {"ok": False, "response": None, "content": None, "error": err}
 
 
-
-def check_virustotal(file_hash = None, url = None):
+def check_virustotal(file_hash=None, url=None):
     if not VIRUSTOTAL_API_KEY:
-        return {
-            "status": "auth_error",
-            "reason": "missing_api_key",
-            "meta": {}
-        }
+        return {"status": "auth_error", "reason": "missing_api_key", "meta": {}}
 
     if url and file_hash:
         return {
             "status": "error",
             "reason": "invalid_input",
-            "meta": {"details": "Provide only file_hash OR url, not both"}
+            "meta": {"details": "Provide only file_hash OR url, not both"},
         }
 
     if not (url or file_hash):
-        return {
-            "status": "error",
-            "reason": "missing_parameters",
-            "meta": {}
-        }
+        return {"status": "error", "reason": "missing_parameters", "meta": {}}
 
     resource = url or file_hash
 
@@ -108,42 +98,44 @@ def check_virustotal(file_hash = None, url = None):
                 return {
                     "status": "error",
                     "reason": "unexpected_format",
-                    "meta": {"resource": resource}
+                    "meta": {"resource": resource},
                 }
 
             return {
                 "status": "ok",
                 "reason": None,
-                "meta": {**stats, "resource": resource}
+                "meta": {**stats, "resource": resource},
             }
 
     except vt.APIError as e:
-        err_code = (getattr(e, 'code', '') or "").lower().replace("error", "").strip("_")
+        err_code = (
+            (getattr(e, "code", "") or "").lower().replace("error", "").strip("_")
+        )
 
         if err_code == "notfound":
             return {
                 "status": "not_found",
                 "reason": "not_found",
-                "meta": {"resource": resource, "error": str(e)}
+                "meta": {"resource": resource, "error": str(e)},
             }
 
         elif err_code in ("authenticationrequired", "forbidden"):
             return {
                 "status": "auth_error",
                 "reason": "invalid_api_key",
-                "meta": {"resource": resource, "error": str(e)}
+                "meta": {"resource": resource, "error": str(e)},
             }
 
         elif err_code in ("quotaexceeded", "ratelimit"):
             return {
                 "status": "rate_limited",
                 "reason": "rate_limited",
-                "meta": {"resource": resource, "error": str(e)}
+                "meta": {"resource": resource, "error": str(e)},
             }
 
         else:
             return {
                 "status": "error",
                 "reason": err_code or "api_error",
-                "meta": {"resource": resource, "error": str(e)}
+                "meta": {"resource": resource, "error": str(e)},
             }
