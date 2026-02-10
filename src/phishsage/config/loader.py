@@ -28,8 +28,7 @@ api = raw.get("api", {})
 
 API_CONFIG = {
     "virustotal_api_key": os.getenv(
-        "VIRUSTOTAL_API_KEY",
-        api.get("virustotal_api_key", "")
+        "VIRUSTOTAL_API_KEY", api.get("virustotal_api_key", "")
     )
 }
 
@@ -44,7 +43,7 @@ SUSPICIOUS_TLDS = set(HEURISTICS.get("suspicious_tlds", []))
 SHORTENERS = set(HEURISTICS.get("shorteners", []))
 FREE_EMAIL_DOMAINS = set(HEURISTICS.get("free_email_domains", []))
 TRIVIAL_SUBDOMAINS = set(HEURISTICS.get("trivial_subdomains", []))
-ABUSABLE_PLATFORM_DOMAINS= set(HEURISTICS.get("abusable_platform_domains", []))
+ABUSABLE_PLATFORM_DOMAINS = set(HEURISTICS.get("abusable_platform_domains", []))
 
 
 SUBDOMAIN_THRESHOLD = HEURISTICS.get("subdomain_threshold", 3)
@@ -57,7 +56,8 @@ THRESHOLD_EXPIRING = HEURISTICS.get("threshold_expiring", 10)
 VIRUSTOTAL_API_KEY = API_CONFIG["virustotal_api_key"]
 
 # Certificate analysis thresholds
-CERT_RECENT_ISSUE_DAYS_THRESHOLD = HEURISTICS.get("cert_recent_issue_days_threshold", 30)
+CERT_RECENT_ISSUE_DAYS_THRESHOLD = HEURISTICS.get(
+    "cert_recent_issue_days_threshold", 30
+)
 CERT_EXPIRY_SOON_DAYS_THRESHOLD = HEURISTICS.get("cert_expiry_soon_days_threshold", 10)
 SSL_DEFAULT_PORT = HEURISTICS.get("ssl_default_port", 443)
-
