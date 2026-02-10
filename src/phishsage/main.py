@@ -3,10 +3,10 @@ import mailparser
 from phishsage.utils.cli_args import get_parser
 from phishsage.utils.header_parser import extract_mail_headers
 from phishsage.utils.attachments import process_attachments
-from phishsage.utils.url_helpers import get_redirect_chain,extract_links
-from phishsage.heuristics.links import run_link_heuristics, scan_with_virustotal
+from phishsage.utils.url_helpers import get_redirect_chain, extract_links
+from phishsage.heuristics.links import LinkHeuristics
 from phishsage.heuristics.headers import run_headers_heuristics
-
+from phishsage.utils.url_parser import parse_url
 
 
 def handle_headers(args, headers):
@@ -22,7 +22,7 @@ def handle_headers(args, headers):
 
 
 def handle_attachments(args, mail):
-   
+
     json_output = {}
 
     # === 1. List attachments ===
@@ -37,8 +37,10 @@ def handle_attachments(args, mail):
                 print("⚠️  No attachments found.\n")
             else:
                 for filename, metadata in results.items():
-                    print(f"  - {filename} ({metadata.get('size_human', 'N/A')}) "
-                          f"[{metadata.get('mime_type', 'N/A')}]")
+                    print(
+                        f"  - {filename} ({metadata.get('size_human', 'N/A')}) "
+                        f"[{metadata.get('mime_type', 'N/A')}]"
+                    )
             print()
 
     # === 2. Extract attachments ===
@@ -74,7 +76,7 @@ def handle_attachments(args, mail):
                     print()
 
     # === 4. VirusTotal ===
-  
+
     if args.scan:
         results = process_attachments(mail, action="scan")
 
@@ -88,18 +90,16 @@ def handle_attachments(args, mail):
 
             for k, v in vt.items():
                 if k == "reason":
-                    continue  # ← drop reason 
+                    continue  # ← drop reason
 
                 vt_clean[k] = v
 
-
             cleaned_results[name] = {
                 "sha256": info.get("sha256"),
-                "virustotal": vt_clean
+                "virustotal": vt_clean,
             }
-    
-            json_output["virustotal_scan"] = cleaned_results or {}
 
+            json_output["virustotal_scan"] = cleaned_results or {}
 
         else:
             print("\n🧪 VirusTotal Scan (Attachments)\n" + "=" * 60)
@@ -124,11 +124,12 @@ def handle_attachments(args, mail):
 
                     print()
 
-                    
     # === 5. YARA Scan (single rule) ===
     if args.yara:
-        
-        results = process_attachments(mail, action="yara", rules_path=args.yara, verbose=args.yara_verbose) 
+
+        results = process_attachments(
+            mail, action="yara", rules_path=args.yara, verbose=args.yara_verbose
+        )
 
         if args.json:
             json_output["yara_scan"] = results or {}
@@ -152,20 +153,20 @@ def handle_attachments(args, mail):
                         print(f"  ⚠️  Scan failed: {scan_result['error']}")
                         continue
 
-                    # Scan suceeded but no matches 
+                    # Scan suceeded but no matches
                     if not scan_result.get("flag", False):
                         print("  ✅ No rules matched")
                         continue
 
-                    # Process Matches 
-                    for m in scan_result.get("matches",[]):
+                    # Process Matches
+                    for m in scan_result.get("matches", []):
                         if not m.get("flag"):
                             print(f"  ✅ Rule '{m['rule']}' did not match")
                             continue
-                        
+
                         # Rule matched
                         print(f"  ⚠️ Rule: {m['rule']}, Namespace: {m['namespace']}")
-                            
+
                         if m.get("rule_meta"):
                             print(f"    Rule info: {m['rule_meta']}")
 
@@ -175,9 +176,8 @@ def handle_attachments(args, mail):
                                 print(f"    - {s['name']} @ {s['offset']}: {s['data']}")
 
                         print("\n")
-                    
+
                     print()
-        
 
     # === Final Output (JSON mode) ===
     if args.json:
@@ -196,10 +196,11 @@ def handle_links(args, mail):
             print("Warning: No URLs found in the email.\n")
         return
 
-
     # Split URLs into web (http/https) and non-web
     web_urls = [u for u in links if u.lower().startswith(("http://", "https://"))]
-    non_web_urls = [u for u in links if not u.lower().startswith(("http://", "https://"))]
+    non_web_urls = [
+        u for u in links if not u.lower().startswith(("http://", "https://"))
+    ]
 
     # Base JSON object for --json mode
     json_output = {
@@ -218,7 +219,6 @@ def handle_links(args, mail):
                 print(f"- {url}")
             print()
 
-
     # === 2. VirusTotal Scan ===
     if args.scan:
         if not args.json and non_web_urls:
@@ -227,8 +227,10 @@ def handle_links(args, mail):
                 print(f"  - {url}")
             print()
 
-    
-        vt_results = {url: scan_with_virustotal(url) for url in web_urls}
+        checker = LinkHeuristics(vt_throttle=1.0)
+        vt_results = {
+            url: checker.scan_with_virustotal(parse_url(url)) for url in web_urls
+        }
 
         if args.json:
 
@@ -238,20 +240,17 @@ def handle_links(args, mail):
 
                 stats.pop("resource", None)
 
-                json_output["virustotal_scan"][url]  = {
-                    "meta": {
-                        "status": meta["status"],
-                        "stats": stats  
-                    }
+                json_output["virustotal_scan"][url] = {
+                    "meta": {"status": meta["status"], "stats": stats}
                 }
 
         else:
             print("\n🧪 VirusTotal Scan (Links)\n" + "=" * 60)
             for url, result in vt_results.items():
 
-                meta = result.get("meta") or  {}
-                stats = (meta.get("stats") or  {}).copy()
-                
+                meta = result.get("meta") or {}
+                stats = (meta.get("stats") or {}).copy()
+
                 # Strip redundant field
                 stats.pop("resource", None)
 
@@ -292,7 +291,7 @@ def handle_links(args, mail):
                 "redirected": info["redirect_count"] > 0,
                 "redirect_count": info["redirect_count"],
                 "status_codes": info.get("status_codes", []),
-                "redirect_chain": info.get("redirect_chain", [])
+                "redirect_chain": info.get("redirect_chain", []),
             }
             redirect_results.append(clean)
 
@@ -304,7 +303,9 @@ def handle_links(args, mail):
                 print(f" ↳ Status Codes: {clean['status_codes']}")
                 print(" ↳ Chain:")
                 for i, u in enumerate(clean["redirect_chain"]):
-                    prefix = "   └──" if i == len(clean["redirect_chain"]) - 1 else "   ├──"
+                    prefix = (
+                        "   └──" if i == len(clean["redirect_chain"]) - 1 else "   ├──"
+                    )
                     print(f"{prefix} {u}")
                 print()
 
@@ -319,8 +320,10 @@ def handle_links(args, mail):
                     print(f"  - {url}")
             print()
 
-
-        heuristics = run_link_heuristics(web_urls, include_redirects=args.include_redirects)
+        checker = LinkHeuristics(
+            vt_throttle=1.0, include_redirects=args.include_redirects
+        )
+        heuristics = checker.run_link_heuristics(web_urls)
 
         if args.json:
             json_output["link_heuristics"] = heuristics
@@ -343,14 +346,13 @@ def main():
         return
 
     try:
-        with open(args.file,"rb") as f:
-            raw_mail_bytes = f.read() # raw bytes for hash + dirty parser
+        with open(args.file, "rb") as f:
+            raw_mail_bytes = f.read()  # raw bytes for hash + dirty parser
 
     except Exception as e:
         print(f"[!] Failed to read email file: {e}")
         return
 
-    
     try:
         mail = mailparser.parse_from_bytes(raw_mail_bytes)
     except Exception as e:
@@ -358,7 +360,6 @@ def main():
         return
 
     headers = extract_mail_headers(mail, raw_mail_bytes)
-   
 
     if args.mode == "attachment":
         handle_attachments(args, mail)
