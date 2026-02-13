@@ -362,7 +362,7 @@ def main():
 
     headers = extract_mail_headers(mail, raw_mail_bytes)
 
-    if args.mode == "attachment":
+    if args.mode == "attachments":
         handle_attachments(args, mail)
     elif args.mode == "links":
         handle_links(args, mail)
