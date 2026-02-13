@@ -7,6 +7,9 @@ from phishsage.utils.url_helpers import get_redirect_chain, extract_links
 from phishsage.heuristics import LinkHeuristics, HeaderHeuristics
 from phishsage.utils.url_parser import parse_url
 
+# Fields to remove from stats
+VT_ZERO_FIELDS = {"timeout", "confirmed-timeout", "failure", "type-unsupported"}
+
 
 def handle_headers(args, headers):
     if args.heuristics:
@@ -87,18 +90,21 @@ def handle_attachments(args, mail):
             for name, info in results.items():
                 vt = info.get("virustotal", {})
 
-            vt_clean = {}
+                stats = vt.get("stats") or {}
+                stats_clean = {
+                    k: v for k, v in stats.items() if k not in VT_ZERO_FIELDS
+                }
 
-            for k, v in vt.items():
-                if k == "reason":
-                    continue  # ← drop reason
+                # Remove 'reason' and 'resource'
+                vt_clean = {
+                    k: v for k, v in vt.items() if k not in ("reason", "resource")
+                }
+                vt_clean["stats"] = stats_clean
 
-                vt_clean[k] = v
-
-            cleaned_results[name] = {
-                "sha256": info.get("sha256"),
-                "virustotal": vt_clean,
-            }
+                cleaned_results[name] = {
+                    "sha256": info.get("sha256"),
+                    "virustotal": vt_clean,
+                }
 
             json_output["virustotal_scan"] = cleaned_results or {}
 
@@ -117,11 +123,21 @@ def handle_attachments(args, mail):
                     status = vt.get("status", "unknown")
                     print(f"    Status: {status}")
 
+                    # Clean stats before printing
                     stats = vt.get("stats") or {}
+                    stats_clean = {
+                        k: v for k, v in stats.items() if k not in VT_ZERO_FIELDS
+                    }
 
-                    print(f"    Stats:")
-                    for k, v in stats.items():
+                    print("    Stats:")
+                    for k, v in stats_clean.items():
                         print(f"      {k}: {v}")
+
+                    if vt.get("last_analysis_date"):
+                        print(f"    Last Scan: {vt['last_analysis_date']}")
+
+                    if vt.get("first_submission_date"):
+                        print(f"    First Seen: {vt['first_submission_date']}")
 
                     print()
 
@@ -229,6 +245,7 @@ def handle_links(args, mail):
             print()
 
         checker = LinkHeuristics(vt_throttle=1.0)
+
         vt_results = {
             url: checker.scan_with_virustotal(parse_url(url)) for url in web_urls
         }
@@ -238,29 +255,44 @@ def handle_links(args, mail):
 
             for url, result in vt_results.items():
                 meta = result.get("meta") or {}
-                stats = (meta.get("stats") or {}).copy()
-
-                stats.pop("resource", None)
+                stats = meta.get("stats") or {}
+                stats_clean = {
+                    k: v for k, v in stats.items() if k not in VT_ZERO_FIELDS
+                }
 
                 json_output["virustotal_scan"][url] = {
-                    "meta": {"status": meta["status"], "stats": stats}
+                    "status": meta.get("status"),
+                    "stats": stats_clean,
+                    "last_analysis_date": meta.get("last_analysis_date"),
+                    "first_submission_date": meta.get("first_submission_date"),
                 }
 
         else:
             print("\n🧪 VirusTotal Scan (Links)\n" + "=" * 60)
+
             for url, result in vt_results.items():
-
                 meta = result.get("meta") or {}
-                stats = (meta.get("stats") or {}).copy()
-
-                # Strip redundant field
-                stats.pop("resource", None)
+                stats = meta.get("stats") or {}
+                stats_clean = {
+                    k: v for k, v in stats.items() if k not in VT_ZERO_FIELDS
+                }
 
                 print(f"- {url}")
                 print(f"    Status: {meta.get('status', 'unknown')}")
-                print(f"    Stats:")
-                for k, v in stats.items():
-                    print(f"      {k}: {v}")
+
+                print("    Stats:")
+                if stats_clean:
+                    for k, v in stats_clean.items():
+                        print(f"      {k}: {v}")
+                else:
+                    print("      None")
+
+                if meta.get("last_analysis_date"):
+                    print(f"    Last Scan: {meta['last_analysis_date']}")
+
+                if meta.get("first_submission_date"):
+                    print(f"    First Seen: {meta['first_submission_date']}")
+
                 print()
 
     # === 3. Redirect Chain Analysis ===

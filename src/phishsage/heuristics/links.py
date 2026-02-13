@@ -590,6 +590,7 @@ class LinkHeuristics:
             result["meta"]["error"] = err_msg
 
         return result
+        
 
     def scan_with_virustotal(self, parsed) -> dict:
         """
@@ -600,15 +601,15 @@ class LinkHeuristics:
 
         try:
             vt = check_virustotal(url=url)
+
             status = vt.get("status")
             reason_from_vt = vt.get("reason")
             meta = vt.get("meta", {})
 
-            # Throttle unless rate-limited
             if status != "rate_limited":
                 time.sleep(self.vt_throttle)
 
-            # Handle non-success statuses
+            # Handle non-success
             if status != "ok":
                 return {
                     "flags": False if status == "not_found" else True,
@@ -622,21 +623,12 @@ class LinkHeuristics:
                     },
                 }
 
-            # Extract stats
-            stats = meta
-            cleaned_stats = {
-                "malicious": stats.get("malicious", 0),
-                "suspicious": stats.get("suspicious", 0),
-                "undetected": stats.get("undetected", 0),
-                "harmless": stats.get("harmless", 0),
-                "resource": stats.get("resource"),
-            }
+            stats = meta.get("last_analysis_stats", {})
 
-            malicious = cleaned_stats["malicious"] > 0
-            suspicious = cleaned_stats["suspicious"] > 0
+            malicious = stats.get("malicious", 0) > 0
+            suspicious = stats.get("suspicious", 0) > 0
             is_flagged = malicious or suspicious
 
-            # Determine reasons
             reasons = []
             if malicious:
                 reasons.append("vt_malicious")
@@ -648,12 +640,14 @@ class LinkHeuristics:
                 "reason": reasons,
                 "meta": {
                     "status": "ok",
-                    "stats": cleaned_stats,
+                    "stats": stats,
+                    "resource": meta.get("resource"),
+                    "last_analysis_date": meta.get("last_analysis_date"),
+                    "first_submission_date": meta.get("first_submission_date"),
                 },
             }
 
         except Exception as e:
-            # Network or unexpected error
             return {
                 "flags": True,
                 "reason": ["vt_exception"],
@@ -793,4 +787,3 @@ class LinkHeuristics:
                 )
 
         return full_results
-

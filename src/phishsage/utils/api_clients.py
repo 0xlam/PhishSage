@@ -93,18 +93,30 @@ def check_virustotal(file_hash=None, url=None):
             else:
                 obj = client.get_object("/files/{}", file_hash)
 
-            stats = obj.last_analysis_stats
-            if stats is None:
+            stats = dict(obj.get("last_analysis_stats", {}))
+
+
+            if not stats:
                 return {
                     "status": "error",
                     "reason": "unexpected_format",
                     "meta": {"resource": resource},
                 }
+                
+
+            last_dt = getattr(obj, "last_analysis_date", None)
+            first_dt = getattr(obj, "first_submission_date", None)
+
 
             return {
                 "status": "ok",
                 "reason": None,
-                "meta": {**stats, "resource": resource},
+                "meta": {
+                    "resource": resource,
+                    "last_analysis_stats": stats,
+                    "last_analysis_date": last_dt.isoformat() if last_dt else None,
+                    "first_submission_date": first_dt.isoformat() if first_dt else None,
+                },
             }
 
     except vt.APIError as e:
@@ -139,3 +151,4 @@ def check_virustotal(file_hash=None, url=None):
                 "reason": err_code or "api_error",
                 "meta": {"resource": resource, "error": str(e)},
             }
+

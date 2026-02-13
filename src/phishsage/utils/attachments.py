@@ -169,19 +169,21 @@ def scan_attachments(parsed_attachments):
 
         vt_result = check_virustotal(file_hash=sha256)
 
+        status = vt_result.get("status")
+        reason = vt_result.get("reason")
         meta = vt_result.get("meta") or {}
-        stats = meta.copy() if vt_result.get("status") == "ok" else {}
 
-        # Remove VT-internal reference
-        stats.pop("resource", None)
-        stats.pop("error", None)
+        stats = meta.get("last_analysis_stats") if status == "ok" else None
 
         scanned[filename] = {
             "sha256": sha256,
             "virustotal": {
-                "status": vt_result.get("status"),
-                "reason": vt_result.get("reason"),
+                "status": status,
+                "reason": reason,
                 "stats": stats,
+                "resource": meta.get("resource"),
+                "last_analysis_date": meta.get("last_analysis_date"),
+                "first_submission_date": meta.get("first_submission_date"),
             },
         }
 
