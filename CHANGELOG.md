@@ -19,3 +19,8 @@
 ### Added
 - `url_parser.py` module for shared URL parsing utilities
 
+
+## [1.2.1] - 2026-02-14
+
+### Fixed
+- Prevent KeyError in JSON output when VirusTotal scan results are added.
