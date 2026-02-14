@@ -234,6 +234,7 @@ def handle_links(args, mail):
         }
 
         if args.json:
+            json_output["virustotal_scan"] = {}
 
             for url, result in vt_results.items():
                 meta = result.get("meta") or {}
