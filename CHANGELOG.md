@@ -24,3 +24,11 @@
 
 ### Fixed
 - Prevent KeyError in JSON output when VirusTotal scan results are added.
+
+
+## [1.3.0] - 2026-02-15
+
+### Improved
+- Consolidated `scan_with_virustotal` logic in `LinkHeuristics`.
+- Aligned VirusTotal data structure across attachments, links, and API client modules.
+- Cleaned up output formatting and added `last_analysis_date` and `first_submission_date`.
