@@ -9,7 +9,7 @@ from phishsage.config.loader import (
     THRESHOLD_YOUNG,
     THRESHOLD_EXPIRING,
 )
-from phishsage.utils.header_helpers import is_domain_match, earliest_received_date
+from phishsage.utils import is_domain_match, earliest_received_date
 
 
 class HeaderHeuristics:

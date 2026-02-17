@@ -27,9 +27,12 @@ from phishsage.config.loader import (
     TRIVIAL_SUBDOMAINS,
 )
 
-from phishsage.utils.api_clients import check_virustotal
-from phishsage.utils.url_helpers import *
-from phishsage.utils.url_parser import parse_url
+from phishsage.utils import (
+    check_virustotal,
+    shannon_entropy,
+    get_redirect_chain,
+    parse_url,
+)
 
 
 class LinkHeuristics:
@@ -590,7 +593,6 @@ class LinkHeuristics:
             result["meta"]["error"] = err_msg
 
         return result
-        
 
     def scan_with_virustotal(self, parsed) -> dict:
         """
