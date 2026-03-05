@@ -3,6 +3,8 @@ import re
 from collections import Counter
 from urllib.parse import urlparse, urlunparse
 
+import aiohttp
+import asyncio
 import requests
 import tldextract
 from bs4 import BeautifulSoup
@@ -89,31 +91,43 @@ def extract_links(html_body):
     return unique_links
 
 
-def get_redirect_chain(parsed, max_redirects=MAX_REDIRECTS):
+async def get_redirect_chain(
+    parsed,
+    session: aiohttp.ClientSession,
+    max_redirects=MAX_REDIRECTS,
+):
 
     url = parsed.normalized
 
     try:
-        session = requests.Session()
-        session.max_redirects = max_redirects
-        response = session.get(url, allow_redirects=True, timeout=(3, 5), stream=True)
+        async with session.get(
+            url,
+            allow_redirects=True,
+            max_redirects=max_redirects,
+        ) as response:
 
-        chain = [r.url for r in response.history] + [response.url]
-        statuses = [r.status_code for r in response.history] + [response.status_code]
-        final_url = response.url
-        redirect_count = len(chain) - 1
+            history = response.history
 
-        return {
-            "original_url": url,
-            "redirect_chain": chain,
-            "status_codes": statuses,
-            "final_url": final_url,
-            "final_status": response.status_code,
-            "redirect_count": redirect_count,
-            "redirected": redirect_count > 0,
-        }
+            chain = [r.url.human_repr() for r in history] + [
+                response.url.human_repr()
+            ]
 
-    except requests.exceptions.TooManyRedirects:
+            statuses = [r.status for r in history] + [response.status]
+
+            final_url = response.url.human_repr()
+            redirect_count = len(chain) - 1
+
+            return {
+                "original_url": url,
+                "redirect_chain": chain,
+                "status_codes": statuses,
+                "final_url": final_url,
+                "final_status": response.status,
+                "redirect_count": redirect_count,
+                "redirected": redirect_count > 0,
+            }
+
+    except aiohttp.TooManyRedirects:
         return {
             "original_url": url,
             "error": "Too many redirects",
@@ -123,7 +137,17 @@ def get_redirect_chain(parsed, max_redirects=MAX_REDIRECTS):
             "redirected": True,
         }
 
-    except requests.exceptions.RequestException as e:
+    except asyncio.TimeoutError:
+        return {
+            "original_url": url,
+            "error": "Request timeout",
+            "redirect_chain": [],
+            "status_codes": [],
+            "redirect_count": 0,
+            "redirected": False,
+        }
+
+    except aiohttp.ClientError as e:
         return {
             "original_url": url,
             "error": str(e),
