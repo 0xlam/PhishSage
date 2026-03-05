@@ -1,10 +1,11 @@
 import socket
 import ssl
-import time
 import traceback
 from datetime import datetime, timezone
 
 
+import asyncio
+import aiohttp
 import ipaddress
 import whois
 from cryptography import x509
@@ -41,92 +42,116 @@ class LinkHeuristics:
     def __init__(self, vt_throttle: float = 1.0, include_redirects: bool = False):
         self.vt_throttle = vt_throttle
         self.include_redirects = include_redirects
+        self._session = None
 
-    def analyze_certificate(self, parsed) -> dict:
-        """
-        Checks if certificate is expired or recently issued.
-        """
+    async def __aenter__(self):
+        self._session = aiohttp.ClientSession()
+        return self
 
-        result = {
-            "flags": False,
-            "reason": [],
-            "meta": {},
-        }
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._session:
+            await self._session.close()
+            self._session = None
 
-        try:
-            hostname = parsed.hostname
-            if not hostname:
-                result["reason"].append("invalid_url")
-                return result
+    async def analyze_certificate(self, parsed) -> dict:
 
-            cert_pem = ssl.get_server_certificate((hostname, SSL_DEFAULT_PORT))
+        hostname = parsed.hostname
 
-            cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
+        if not hostname:
+            return {"flags": False, "reason": ["invalid_url"], "meta": {}}
 
-            now = datetime.now(timezone.utc)
-            valid_from = cert.not_valid_before_utc
-            valid_to = cert.not_valid_after_utc
+        def cert_check(hostname):
 
-            days_since_issued = (now - valid_from).total_seconds() / 86400
-            days_until_expiry = (valid_to - now).total_seconds() / 86400
-
-            # ---- expired ----
-            if now >= valid_to:
-                result["flags"] = True
-                result["reason"].append("expired_certificate")
-
-            # ---- recently issued ----
-            if 0 <= days_since_issued <= CERT_RECENT_ISSUE_DAYS_THRESHOLD:
-                result["flags"] = True
-                result["reason"].append("recently_issued_certificate")
-
-            # ---- minimal meta ----
-            issuer_cn = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
-            subject_cn = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
-
-            result["meta"] = {
-                "hostname": hostname,
-                "issuer_cn": issuer_cn[0].value if issuer_cn else None,
-                "subject_cn": subject_cn[0].value if subject_cn else None,
-                "valid_from": valid_from.isoformat(),
-                "valid_to": valid_to.isoformat(),
-                "days_since_issued": int(days_since_issued),
-                "days_until_expiry": int(days_until_expiry),
+            result = {
+                "flags": False,
+                "reason": [],
+                "meta": {},
             }
+
+            try:
+
+                socket.setdefaulttimeout(10)
+                cert_pem = ssl.get_server_certificate((hostname, SSL_DEFAULT_PORT))
+
+                cert = x509.load_pem_x509_certificate(
+                    cert_pem.encode(), default_backend()
+                )
+
+                now = datetime.now(timezone.utc)
+                valid_from = cert.not_valid_before_utc
+                valid_to = cert.not_valid_after_utc
+
+                days_since_issued = (now - valid_from).total_seconds() / 86400
+                days_until_expiry = (valid_to - now).total_seconds() / 86400
+
+                # Flags
+                if now >= valid_to:
+                    result["flags"] = True
+                    result["reason"].append("expired_certificate")
+                if 0 <= days_since_issued <= CERT_RECENT_ISSUE_DAYS_THRESHOLD:
+                    result["flags"] = True
+                    result["reason"].append("recently_issued_certificate")
+
+                # Meta
+                issuer_cn = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
+                subject_cn = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+
+                result["meta"] = {
+                    "hostname": hostname,
+                    "issuer_cn": issuer_cn[0].value if issuer_cn else None,
+                    "subject_cn": subject_cn[0].value if subject_cn else None,
+                    "valid_from": valid_from.isoformat(),
+                    "valid_to": valid_to.isoformat(),
+                    "days_since_issued": int(days_since_issued),
+                    "days_until_expiry": int(days_until_expiry),
+                }
+
+            except socket.timeout:
+                result = {
+                    "flags": True,
+                    "reason": ["ssl_handshake_timeout"],
+                    "meta": {"hostname": hostname, "error": "Connection timeout"},
+                }
+            except ssl.SSLError as e:
+                msg = str(e).upper()
+                reason = []
+                if "CERTIFICATE_VERIFY_FAILED" in msg:
+                    reason = ["certificate verification failed"]
+                elif "WRONG_VERSION_NUMBER" in msg:
+                    reason = ["tls_protocol_mismatch"]
+                elif "HANDSHAKE_FAILURE" in msg:
+                    reason = ["handshake_failure"]
+                else:
+                    reason = ["ssl_error"]
+                result = {
+                    "flags": True,
+                    "reason": reason,
+                    "meta": {"hostname": hostname, "error": str(e)},
+                }
+            except ConnectionRefusedError:
+                result = {
+                    "flags": True,
+                    "reason": ["connection_refused"],
+                    "meta": {"hostname": hostname, "error": "Connection refused"},
+                }
+            except Exception as e:
+                result = {
+                    "flags": True,
+                    "reason": ["unhandled_exception"],
+                    "meta": {"hostname": hostname, "error": str(e)},
+                }
 
             return result
 
-        except socket.timeout:
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(cert_check, hostname), timeout=15
+            )
+        except asyncio.TimeoutError:
             return {
                 "flags": True,
-                "reason": ["ssl_handshake_timeout"],
-                "meta": {"hostname": hostname, "error": str(e)},
-            }
-
-        except ssl.SSLError as e:
-            msg = str(e).upper()
-            reason = []
-
-            if "CERTIFICATE_VERIFY_FAILED" in msg:
-                reason = ["certificate verification failed"]
-            elif "WRONG_VERSION_NUMBER" in msg:
-                reason = ["tls_protocol_mismatch"]
-            elif "HANDSHAKE_FAILURE" in msg:
-                reason = ["handshake_failure"]
-            else:
-                reason = ["ssl_error"]
-
-            return {
-                "flags": True,
-                "reason": reason,
-                "meta": {"hostname": hostname, "error": str(e)},
-            }
-
-        except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["unhandled_exception"],
-                "meta": {"hostname": hostname, "error": str(e)},
+                "reason": ["operation_timeout"],
+                "meta": {"hostname": hostname, "error": "Certificate check timed out"},
             }
 
     def domain_entropy(self, parsed) -> dict:
@@ -529,7 +554,7 @@ class LinkHeuristics:
                 },
             }
 
-    def domain_age(self, parsed) -> dict:
+    async def domain_age(self, parsed) -> dict:
         """
         Flags True if domain is newly registered, expiring soon, or WHOIS failed.
         """
@@ -547,7 +572,7 @@ class LinkHeuristics:
         threshold_expiring = THRESHOLD_EXPIRING
 
         try:
-            w = whois.whois(parsed.registered_domain)
+            w = await asyncio.to_thread(whois.whois, parsed.registered_domain)
 
             # Handle creation date
             created = w.creation_date
@@ -594,7 +619,7 @@ class LinkHeuristics:
 
         return result
 
-    def scan_with_virustotal(self, parsed) -> dict:
+    async def scan_with_virustotal(self, parsed) -> dict:
         """
         Scan a URL with VirusTotal and return flags, reason, and meta.
         Flags True if malicious/suspicious or if scan failed.
@@ -602,14 +627,14 @@ class LinkHeuristics:
         url = parsed.normalized
 
         try:
-            vt = check_virustotal(url=url)
+            vt_result = await check_virustotal(url=url)
 
-            status = vt.get("status")
-            reason_from_vt = vt.get("reason")
-            meta = vt.get("meta", {})
+            status = vt_result.get("status")
+            reason_from_vt = vt_result.get("reason")
+            meta = vt_result.get("meta", {})
 
             if status != "rate_limited":
-                time.sleep(self.vt_throttle)
+                await asyncio.sleep(self.vt_throttle)
 
             # Handle non-success
             if status != "ok":
@@ -659,133 +684,112 @@ class LinkHeuristics:
                 },
             }
 
-    def run_link_heuristics(self, urls: list[str]) -> list[dict]:
-        """
-        Run all link-based heuristics on a list of URLs.
-        Returns a list of per-URL analysis dictionaries.
-        Each heuristic follows the {flags, reason, meta} format.
-        """
+    async def _analyze_single_url(self, url: str) -> dict:
+        try:
+            parsed = parse_url(url)
 
-        full_results = []
+            # --- URL-based heuristics ---
+            heuristics = {
+                "ip_based": self.is_ip_url(parsed),
+                "suspicious_tld": self.has_suspicious_tld(parsed),
+                "excessive_subdomains": self.too_many_subdomains(parsed),
+                "shortened_url": self.is_shortened_url(parsed),
+                "numeric_domain": self.is_numeric_domain(parsed),
+                "excessive_path": self.excessive_path_depth(parsed),
+                "abusable_platform": self.uses_abusable_platform(parsed),
+            }
 
-        for url in urls:
-            try:
+            # --- Entropy ---
+            entropy = self.domain_entropy(parsed)
 
-                parsed = parse_url(url)
+            tasks = [
+                asyncio.create_task(self.analyze_certificate(parsed)),
+                asyncio.create_task(self.domain_age(parsed)),
+                asyncio.create_task(self.scan_with_virustotal(parsed)),
+            ]
 
-                # --- URL-based heuristics ---
-                heuristics = {
-                    "ip_based": self.is_ip_url(parsed),
-                    "suspicious_tld": self.has_suspicious_tld(parsed),
-                    "excessive_subdomains": self.too_many_subdomains(parsed),
-                    "shortened_url": self.is_shortened_url(parsed),
-                    "numeric_domain": self.is_numeric_domain(parsed),
-                    "excessive_path": self.excessive_path_depth(parsed),
-                    "abusable_platform": self.uses_abusable_platform(parsed),
-                }
-
-                # --- Entropy ---
-                try:
-                    entropy = self.domain_entropy(parsed)
-                except Exception as e:
-                    entropy = {
-                        "flags": False,
-                        "reason": ["entropy_calc_failed"],
-                        "meta": {"error": str(e)},
-                    }
-
-                # --- SSL Certificate ---
-                try:
-                    certificate = self.analyze_certificate(parsed)
-                except Exception as e:
-                    certificate = {
-                        "flags": True,
-                        "reason": ["cert_analysis_failed"],
-                        "meta": {"error": str(e)},
-                    }
-
-                # --- Domain Age / WHOIS ---
-                try:
-                    if parsed.hostname:
-                        domain_age_result = self.domain_age(parsed)
-                    else:
-                        domain_age_result = {
-                            "flags": False,
-                            "reason": ["no_hostname"],
-                            "meta": {"domain": None},
-                        }
-                except Exception as e:
-                    domain_age_result = {
-                        "flags": True,
-                        "reason": ["whois_failed"],
-                        "meta": {"error": str(e)},
-                    }
-
-                # --- VirusTotal ---
-                try:
-                    vt_raw = self.scan_with_virustotal(parsed)
-                    virustotal = {
-                        "flags": vt_raw.get("flags", False),
-                        "reason": vt_raw.get("reason", []),
-                        "meta": vt_raw.get("meta", {}),
-                    }
-                except Exception as e:
-                    virustotal = {
-                        "flags": True,
-                        "reason": ["vt_scan_failed"],
-                        "meta": {"error": str(e)},
-                    }
-
-                # --- Optional Redirect Chain ---
-                redirect_chain = None
-                if self.include_redirects:
-                    try:
-                        redirect_chain = get_redirect_chain(parsed)
-                    except Exception as e:
-                        redirect_chain = {"error": f"redirect_check_failed: {str(e)}"}
-
-                # --- Aggregate Flags ---
-                aggregated_flags = set()
-                for key, result in heuristics.items():
-                    if result.get("flags"):
-                        aggregated_flags.update(result.get("reason", []))
-                if entropy.get("flags"):
-                    aggregated_flags.update(entropy.get("reason", []))
-                if certificate.get("flags"):
-                    aggregated_flags.update(certificate.get("reason", []))
-                if domain_age_result.get("flags"):
-                    aggregated_flags.update(domain_age_result.get("reason", []))
-                if virustotal.get("flags"):
-                    aggregated_flags.update(virustotal.get("reason", []))
-
-                # --- Final Result per URL ---
-                result = {
-                    "url": url,
-                    "heuristics": heuristics,
-                    "entropy": entropy,
-                    "certificate": certificate,
-                    "domain_age": domain_age_result,
-                    "virustotal": virustotal,
-                }
-                if redirect_chain:
-                    result["redirect_chain"] = redirect_chain
-
-                result["aggregated_flags"] = sorted(aggregated_flags)
-
-                full_results.append(result)
-
-            except Exception as e:
-                # Catch-all for any URL-level processing failure
-                full_results.append(
-                    {
-                        "url": url,
-                        "flags": True,
-                        "reason": ["unhandled_exception"],
-                        "meta": {
-                            "error": f"{type(e).__name__}: {str(e)}",
-                            "traceback": traceback.format_exc(),
-                        },
-                    }
+            # Optional redirect chain
+            if self.include_redirects:
+                tasks.append(
+                    asyncio.create_task(get_redirect_chain(parsed, self._session))
                 )
 
-        return full_results
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            certificate = (
+                results[0]
+                if not isinstance(results[0], Exception)
+                else {
+                    "flags": True,
+                    "reason": ["cert_analysis_failed"],
+                    "meta": {"error": str(results[0])},
+                }
+            )
+
+            domain_age_result = (
+                results[1]
+                if not isinstance(results[1], Exception)
+                else {
+                    "flags": True,
+                    "reason": ["whois_failed"],
+                    "meta": {"error": str(results[1])},
+                }
+            )
+
+            virustotal = (
+                results[2]
+                if not isinstance(results[2], Exception)
+                else {
+                    "flags": True,
+                    "reason": ["vt_scan_failed"],
+                    "meta": {"error": str(results[2])},
+                }
+            )
+
+            redirect_chain = results[3] if self.include_redirects else None
+            if self.include_redirects and isinstance(redirect_chain, Exception):
+                redirect_chain = {
+                    "error": f"redirect_check_failed: {str(redirect_chain)}"
+                }
+
+            # --- Aggregate Flags ---
+            aggregated_flags = set()
+            for result in heuristics.values():
+                if result.get("flags"):
+                    aggregated_flags.update(result.get("reason", []))
+            for result in [entropy, certificate, domain_age_result, virustotal]:
+                if result.get("flags"):
+                    aggregated_flags.update(result.get("reason", []))
+            if redirect_chain and redirect_chain.get("redirected", False):
+                aggregated_flags.add("redirected_url")
+
+            # --- Final Result ---
+            result = {
+                "url": url,
+                "heuristics": heuristics,
+                "entropy": entropy,
+                "certificate": certificate,
+                "domain_age": domain_age_result,
+                "virustotal": virustotal,
+            }
+            if redirect_chain:
+                result["redirect_chain"] = redirect_chain
+
+            result["aggregated_flags"] = sorted(aggregated_flags)
+
+            return result
+
+        except Exception as e:
+            return {
+                "url": url,
+                "flags": True,
+                "reason": ["unhandled_exception"],
+                "meta": {
+                    "error": f"{type(e).__name__}: {str(e)}",
+                    "traceback": traceback.format_exc(),
+                },
+            }
+
+    async def run_link_heuristics(self, urls: list[str]) -> list[dict]:
+        tasks = [self._analyze_single_url(url) for url in urls]
+        return await asyncio.gather(*tasks)
