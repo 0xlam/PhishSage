@@ -1,8 +1,10 @@
 import re
-import whois
-import dns.resolver
-from dateutil import parser
+import asyncio
 from datetime import datetime, timedelta, timezone
+
+import whois
+import aiodns
+from dateutil import parser
 from phishsage.config.loader import (
     FREE_EMAIL_DOMAINS,
     DATE_RECEIVED_DRIFT_MINUTES,
@@ -15,7 +17,13 @@ from phishsage.utils import is_domain_match, earliest_received_date
 class HeaderHeuristics:
 
     def __init__(self):
-        pass
+        self._resolver = None
+
+    async def _get_resolver(self):
+        if self._resolver is None:
+            self._resolver = aiodns.DNSResolver()
+        return self._resolver
+
 
     def auth_check(self, headers) -> dict:
         """
@@ -462,112 +470,112 @@ class HeaderHeuristics:
         flags = bool(alerts)
         return {"flags": flags, "result": result, "alerts": alerts, "meta": meta}
 
-    def domain_age_bulk(self, headers) -> dict:
-        """
-        Runs WHOIS lookup for multiple domains and returns age/expiry data with alerts
-        for newly registered or soon-to-expire domains.
-        """
-        results = {}
+    async def _whois_lookup(self, label: str, domain: str):
+        entry = {"age_days": None, "expiry_days_left": None, "error": None}
         alerts = []
-        meta = {}
+        meta = {"domain": domain}
 
+        now = datetime.now(timezone.utc)
+
+        try:
+            w = await asyncio.to_thread(whois.whois, domain)
+
+            # Creation date
+            created = (
+                w.creation_date[0] if isinstance(w.creation_date, list) else w.creation_date
+            )
+            if isinstance(created, str):
+                created = parser.parse(created)
+
+            # Expiration date
+            expires = (
+                w.expiration_date[0] if isinstance(w.expiration_date, list) else w.expiration_date
+            )
+            if isinstance(expires, str):
+                expires = parser.parse(expires)
+
+            # Normalize to UTC
+            if created:
+                created = (
+                    created.replace(tzinfo=timezone.utc)
+                    if created.tzinfo is None
+                    else created.astimezone(timezone.utc)
+                )
+                entry["age_days"] = (now - created).days
+
+            if expires:
+                expires = (
+                    expires.replace(tzinfo=timezone.utc)
+                    if expires.tzinfo is None
+                    else expires.astimezone(timezone.utc)
+                )
+                entry["expiry_days_left"] = (expires - now).days
+
+            # Alerts
+            if entry["age_days"] is not None and entry["age_days"] < THRESHOLD_YOUNG:
+                alerts.append(
+                    {
+                        "type": "YOUNG_DOMAIN",
+                        "message": f"Domain {domain} appears newly registered — only {entry['age_days']} days old.",
+                    }
+                )
+            if (
+                entry["expiry_days_left"] is not None
+                and entry["expiry_days_left"] <= THRESHOLD_EXPIRING
+            ):
+                alerts.append(
+                    {
+                        "type": "DOMAIN_EXPIRING_SOON",
+                        "message": f"Domain {domain} is expiring soon — {entry['expiry_days_left']} days left.",
+                    }
+                )
+
+        except Exception as e:
+            err_msg = str(e).splitlines()[0] if str(e) else "Unknown WHOIS error"
+            entry["error"] = err_msg
+            alerts.append(
+                {
+                    "type": "WHOIS_ERROR",
+                    "message": f"⚠️ Unable to retrieve WHOIS data for {domain}: {err_msg}",
+                }
+            )
+
+        return label, entry, alerts, meta
+
+    async def domain_age_bulk(self, headers) -> dict:
         domains = {
             "from": headers.from_domain,
             "reply_to": headers.reply_to_domain,
             "return_path": headers.return_path_domain,
         }
 
-        threshold_young = THRESHOLD_YOUNG
-        threshold_expiring = THRESHOLD_EXPIRING
-        now = datetime.now(timezone.utc)
+        tasks = [
+            self._whois_lookup(label, domain)
+            for label, domain in domains.items() if domain
+        ]
 
-        for label, domain in domains.items():
-            if not domain:
-                continue
+        if not tasks:
+            return {"flags": False, "result": {}, "alerts": [], "meta": {}}
 
-            entry = {"age_days": None, "expiry_days_left": None, "error": None}
-            domain_meta = {"domain": domain}
+        results = await asyncio.gather(*tasks)
 
-            try:
-                w = whois.whois(domain)
+        final_results = {}
+        final_alerts = []
+        final_meta = {}
 
-                # Handle creation date
-                created = (
-                    w.creation_date[0]
-                    if isinstance(w.creation_date, list)
-                    else w.creation_date
-                )
-                if isinstance(created, str):
-                    created = parser.parse(created)
+        for label, entry, alerts, meta in results:
+            final_results[label] = entry
+            final_alerts.extend(alerts)
+            final_meta[label] = meta
 
-                # Handle expiration date
-                expires = (
-                    w.expiration_date[0]
-                    if isinstance(w.expiration_date, list)
-                    else w.expiration_date
-                )
-                if isinstance(expires, str):
-                    expires = parser.parse(expires)
+        return {
+            "flags": bool(final_alerts),
+            "result": final_results,
+            "alerts": final_alerts,
+            "meta": final_meta,
+        }
 
-                # Normalize to UTC
-                if created:
-                    created = (
-                        created.replace(tzinfo=timezone.utc)
-                        if created.tzinfo is None
-                        else created.astimezone(timezone.utc)
-                    )
-                if expires:
-                    expires = (
-                        expires.replace(tzinfo=timezone.utc)
-                        if expires.tzinfo is None
-                        else expires.astimezone(timezone.utc)
-                    )
-
-                # Compute metrics
-                if created:
-                    entry["age_days"] = (now - created).days
-                if expires:
-                    entry["expiry_days_left"] = (expires - now).days
-
-                # Alerts
-                if (
-                    entry["age_days"] is not None
-                    and entry["age_days"] < threshold_young
-                ):
-                    alerts.append(
-                        {
-                            "type": "YOUNG_DOMAIN",
-                            "message": f"Domain {domain} appears newly registered — only {entry['age_days']} days old.",
-                        }
-                    )
-                if (
-                    entry["expiry_days_left"] is not None
-                    and entry["expiry_days_left"] <= threshold_expiring
-                ):
-                    alerts.append(
-                        {
-                            "type": "DOMAIN_EXPIRING_SOON",
-                            "message": f"Domain {domain} is expiring soon — {entry['expiry_days_left']} days left.",
-                        }
-                    )
-
-            except Exception as e:
-                err_msg = str(e).splitlines()[0] if str(e) else "Unknown WHOIS error"
-                entry["error"] = err_msg
-                alerts.append(
-                    {
-                        "type": "WHOIS_ERROR",
-                        "message": f"⚠️ Unable to retrieve WHOIS data for {domain}: {err_msg}",
-                    }
-                )
-
-            results[label] = entry
-            meta[label] = domain_meta
-
-        flags = bool(alerts)
-        return {"flags": flags, "result": results, "alerts": alerts, "meta": meta}
-
-    def check_mx(self, headers) -> dict:
+    async def check_mx(self, headers) -> dict:
         """
         Check if a domain has valid MX records.
         """
@@ -583,10 +591,18 @@ class HeaderHeuristics:
                 {"type": "MX_MISSING", "message": "No domain provided for MX check"}
             )
             return {"flags": True, "result": result, "alerts": alerts, "meta": meta}
+   
+        if self._resolver is None:
+            self._resolver = aiodns.DNSResolver()
 
         try:
-            answers = dns.resolver.resolve(domain, "MX")
-            mx_records = sorted([str(r.exchange).rstrip(".") for r in answers])
+            resp = await self._resolver.query_dns(domain, "MX")
+
+            mx_records = sorted(
+                r.data.exchange.rstrip(".")
+                for r in resp.answer
+            )
+
             result["has_mx"] = bool(mx_records)
             result["records"] = mx_records
 
@@ -598,40 +614,82 @@ class HeaderHeuristics:
                     }
                 )
 
-        except dns.resolver.NXDOMAIN:
-            result["error"] = f"Domain does not exist: {domain}"
-            alerts.append(
-                {"type": "MX_MISSING", "message": f"Domain {domain} does not exist"}
-            )
-        except dns.resolver.NoAnswer:
-            result["error"] = f"No MX record found for domain: {domain}"
-            alerts.append(
-                {
-                    "type": "MX_MISSING",
-                    "message": f"No MX record found for domain {domain}",
-                }
-            )
-        except dns.exception.Timeout:
-            result["error"] = "DNS query timed out"
-            alerts.append(
-                {
-                    "type": "MX_ERROR",
-                    "message": f"MX query timed out for domain {domain}",
-                }
-            )
+        except aiodns.error.DNSError as e:
+            code = e.args[0] if e.args else None
+            message = e.args[1] if len(e.args) > 1 else str(e)
+
+            result["error"] = message
+
+            if code in ("ENOTFOUND", "ENODATA"):
+                alerts.append(
+                    {
+                        "type": "MX_MISSING",
+                        "message": f"Domain {domain} has no MX records or does not exist.",
+                    }
+                )
+            else:
+                alerts.append(
+                    {
+                        "type": "MX_ERROR",
+                        "message": f"MX check error for domain {domain}: {message}",
+                    }
+                )
+
         except Exception as e:
             result["error"] = str(e)
             alerts.append(
                 {
                     "type": "MX_ERROR",
-                    "message": f"MX check error for domain {domain}: {str(e)}",
+                    "message": f"Unexpected MX check error for domain {domain}: {str(e)}",
                 }
             )
 
         flags = bool(alerts)
         return {"flags": flags, "result": result, "alerts": alerts, "meta": meta}
 
-    def check_spamhaus(self, headers) -> dict:
+    async def _check_spamhaus_dbl_lookup(self, label:str, domain: str) -> dict:
+        entry = {"listed": False, "error": None}
+        alerts = []
+        meta = {
+            "domain": domain,
+            "query": f"{domain}.dbl.spamhaus.org",
+        }
+
+        query_domain = meta["query"]
+
+        if self._resolver is None:
+            self._resolver = aiodns.DNSResolver()
+
+        try:
+            result = await self._resolver.query_dns(query_domain, "A")
+
+            if result.answer:
+                entry["listed"] = True
+                alerts.append(
+                    {
+                        "type": "DOMAIN_BLACKLISTED",
+                        "message": f"Domain {domain} is listed on Spamhaus DBL",
+                    }
+                )
+            else:
+                entry["listed"] = False
+
+        except aiodns.error.DNSError as e:
+            
+            if e.args and e.args[0] == aiodns.error.ARES_ENOTFOUND:
+                entry["listed"] = False
+            else:
+                entry["error"] = str(e)
+                alerts.append(
+                    {
+                        "type": "SPAMHAUS_ERROR",
+                        "message": f"Error checking Spamhaus for {domain}: {entry['error']}",
+                    }
+                )
+
+        return label, entry, alerts, meta
+
+    async def check_spamhaus(self, headers) -> dict:
         """
         Run Spamhaus DBL lookup for multiple domains.
         """
@@ -642,47 +700,35 @@ class HeaderHeuristics:
             "return_path": headers.return_path_domain,
         }
 
-        results = {}
-        alerts = []
-        meta = {}
+        tasks = [self._check_spamhaus_dbl_lookup(label, domain) 
+                 for label, domain in domains.items()
+                 if domain]
 
-        for label, domain in domains.items():
-            if not domain:
-                continue
+        
+        if not tasks:
+            return {"flags": False, "result": {}, "alerts": [], "meta": {}}
 
-            entry = {"listed": False, "error": None}
-            domain_meta = {"domain": domain, "query": f"{domain}.dbl.spamhaus.org"}
-            try:
-                query_domain = f"{domain}.dbl.spamhaus.org"
-                dns.resolver.resolve(query_domain, "A")
-                entry["listed"] = True
-                alerts.append(
-                    {
-                        "type": "DOMAIN_BLACKLISTED",
-                        "message": f"Domain {domain} is listed on Spamhaus DBL",
-                    }
-                )
-            except dns.resolver.NXDOMAIN:
-                # Not listed — normal
-                entry["listed"] = False
-            except Exception as e:
-                entry["error"] = (
-                    str(e).splitlines()[0] if str(e) else "Unknown Spamhaus error"
-                )
-                alerts.append(
-                    {
-                        "type": "SPAMHAUS_ERROR",
-                        "message": f"Error checking Spamhaus for {domain}: {entry['error']}",
-                    }
-                )
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            results[label] = entry
-            meta[label] = domain_meta
+        final_results = {}
+        final_alerts = []
+        final_meta = {}
 
-        flags = bool(alerts)
-        return {"flags": flags, "result": results, "alerts": alerts, "meta": meta}
+        for label, entry, alerts, meta in results:
+            final_results[label] = entry
+            final_alerts.extend(alerts)
+            final_meta[label] = meta
 
-    def run_headers_heuristics(self, headers):
+
+        return {
+            "flags": bool(final_alerts),
+            "result": final_results,
+            "alerts": final_alerts,
+            "meta": final_meta
+        }
+
+    
+    async def run_headers_heuristics(self, headers):
         """
         Runs all email header heuristics and aggregates results and alerts.
         """
@@ -717,19 +763,25 @@ class HeaderHeuristics:
         # ---- Date sanity ----
         date_alerts = self.check_date_vs_received(headers)
         alerts.extend(date_alerts["alerts"])
+        
+        tasks = [
+            asyncio.create_task(self.check_mx(headers)),
+            asyncio.create_task(self.check_spamhaus(headers)),
+            asyncio.create_task(self.domain_age_bulk(headers)),
+        ]
 
-        # ---- MX check ----
-        mx_data = self.check_mx(headers)
+        mx_data, spamhaus_data, domain_age_data = await asyncio.gather(*tasks)
+
+
+        # ---- MX----
         results["mx"] = mx_data["result"]
         alerts.extend(mx_data["alerts"])
 
         # ---- Spamhaus ----
-        spamhaus_data = self.check_spamhaus(headers)
         results["spamhaus"] = spamhaus_data["result"]
         alerts.extend(spamhaus_data["alerts"])
 
         # ---- Domain age ----
-        domain_age_data = self.domain_age_bulk(headers)
         results["domain_age"] = domain_age_data["result"]
         alerts.extend(domain_age_data["alerts"])
 
