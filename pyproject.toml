@@ -38,7 +38,11 @@ dependencies = [
     "typing_extensions==4.15.0",
     "urllib3==2.5.0",
     "vt-py==0.22.0",
-    "yara-python==4.5.4"
+    "yara-python==4.5.4",
+    "aiodns==4.0.0",
+    "aiohttp==3.13.3",
+    "yarl==1.23.0"
+    
 ]
 
 classifiers = [
