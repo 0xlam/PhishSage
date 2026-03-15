@@ -22,10 +22,18 @@ def get_parser():
     headers_parser.add_argument(
         "--heuristics",
         action="store_true",
-        help="Run heuristic header analysis for anomalies",
+        help="Analyze headers for suspicious patterns and anomalies",
     )
+
     headers_parser.add_argument(
-        "--json", action="store_true", help="Output results in raw JSON format"
+        "--enrich",
+        nargs="*",
+        choices=["mx", "spamhaus", "domain_age", "all"],
+        help="Add threat-intel enrichment to header analysis (mx, spamhaus, domain_age). Requires --heuristics.",
+    )
+
+    headers_parser.add_argument(
+        "--json", action="store_true", help="Output full details in JSON format"
     )
 
     # ----ATTACHMENTS----
@@ -44,7 +52,7 @@ def get_parser():
         help="Compute hashes (MD5, SHA1, SHA256) for each attachment",
     )
     attach_parser.add_argument(
-        "--scan",
+        "--vt-scan",
         action="store_true",
         help="Check attachments against VirusTotal by SHA256",
     )
@@ -61,7 +69,7 @@ def get_parser():
         help="Show detailed string matches and offsets when YARA rules hit",
     )
     attach_parser.add_argument(
-        "--json", action="store_true", help="Output results in raw JSON format"
+        "--json", action="store_true", help="Output full details in JSON format"
     )
 
     # ----LINKS----
@@ -69,35 +77,32 @@ def get_parser():
         "links", parents=[common], help="Analyze links in email content"
     )
     link_parser.add_argument(
-        "--extract",
-        action="store_true",
-        help="Extract all URLs found in the email body or headers",
+        "--extract", action="store_true", help="Extract URLs from the email body"
     )
     link_parser.add_argument(
-        "--scan",
+        "--vt-scan",
         action="store_true",
-        help="Submit extracted links to VirusTotal for analysis",
+        help="Query VirusTotal for URL reputation",
     )
-
-    mode_group = link_parser.add_mutually_exclusive_group()
-    mode_group.add_argument(
+    link_parser.add_argument(
         "--check-redirects",
         action="store_true",
-        help="Follow and display final redirect destinations for each URL",
+        help="Follow HTTP redirects and show chain",
     )
-    mode_group.add_argument(
+    link_parser.add_argument(
         "--heuristics",
         action="store_true",
-        help="Run phishing heuristics on extracted URLs",
+        help="Run phishing detection heuristics (use --enrich to add extra data)",
+    )
+    link_parser.add_argument(
+        "--enrich",
+        nargs="*",
+        choices=["all", "domain_age", "certificate", "virustotal", "redirects"],
+        help="Add extra analysis to heuristics (requires --heuristics)",
     )
 
     link_parser.add_argument(
-        "--include-redirects",
-        action="store_true",
-        help="Include redirect chain when running heuristics (ignored if --heuristics not used)",
-    )
-    link_parser.add_argument(
-        "--json", action="store_true", help="Output results in raw JSON format"
+        "--json", action="store_true", help="Output full details in JSON format"
     )
 
     return parser
