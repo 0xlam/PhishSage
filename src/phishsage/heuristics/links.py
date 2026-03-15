@@ -1,7 +1,9 @@
 import socket
+import math
 import ssl
 import traceback
 from datetime import datetime, timezone
+from collections import Counter
 
 
 import asyncio
@@ -26,22 +28,27 @@ from phishsage.config.loader import (
     THRESHOLD_EXPIRING,
     THRESHOLD_YOUNG,
     TRIVIAL_SUBDOMAINS,
+    MAX_REDIRECTS,
 )
 
-from phishsage.utils import (
-    check_virustotal,
-    shannon_entropy,
-    get_redirect_chain,
-    parse_url,
-)
+from phishsage.clients import check_virustotal
+from phishsage.parsers import parse_url
+
+
+def shannon_entropy(s):
+    if not s:
+        return 0.0
+    prob = Counter(s).values()
+    prob = [p / len(s) for p in prob]
+    return -sum(p * math.log2(p) for p in prob)
 
 
 class LinkHeuristics:
     """docstring for LinkHeuristics"""
 
-    def __init__(self, vt_throttle: float = 1.0, include_redirects: bool = False):
+    def __init__(self, vt_throttle: float = 1.0, enrich=None):
         self.vt_throttle = vt_throttle
-        self.include_redirects = include_redirects
+        self.enrich = enrich or []
         self._session = None
 
     async def __aenter__(self):
@@ -619,6 +626,75 @@ class LinkHeuristics:
 
         return result
 
+    async def resolve_redirect_chain(
+        self,
+        parsed,
+        max_redirects=MAX_REDIRECTS,
+    ):
+
+        url = parsed.normalized
+
+        if not self._session:
+            raise RuntimeError("LinkHeuristics must be used within an async context")
+
+        try:
+            async with self._session.get(
+                url,
+                allow_redirects=True,
+                max_redirects=max_redirects,
+            ) as response:
+
+                history = response.history
+
+                chain = [r.url.human_repr() for r in history] + [
+                    response.url.human_repr()
+                ]
+
+                statuses = [r.status for r in history] + [response.status]
+
+                final_url = response.url.human_repr()
+                redirect_count = len(chain) - 1
+
+                return {
+                    "original_url": url,
+                    "redirect_chain": chain,
+                    "status_codes": statuses,
+                    "final_url": final_url,
+                    "final_status": response.status,
+                    "redirect_count": redirect_count,
+                    "redirected": redirect_count > 0,
+                }
+
+        except aiohttp.TooManyRedirects:
+            return {
+                "original_url": url,
+                "error": "Too many redirects",
+                "redirect_chain": [],
+                "status_codes": [],
+                "redirect_count": max_redirects,
+                "redirected": True,
+            }
+
+        except asyncio.TimeoutError:
+            return {
+                "original_url": url,
+                "error": "Request timeout",
+                "redirect_chain": [],
+                "status_codes": [],
+                "redirect_count": 0,
+                "redirected": False,
+            }
+
+        except aiohttp.ClientError as e:
+            return {
+                "original_url": url,
+                "error": str(e),
+                "redirect_chain": [],
+                "status_codes": [],
+                "redirect_count": 0,
+                "redirected": False,
+            }
+
     async def scan_with_virustotal(self, parsed) -> dict:
         """
         Scan a URL with VirusTotal and return flags, reason, and meta.
@@ -668,7 +744,6 @@ class LinkHeuristics:
                 "meta": {
                     "status": "ok",
                     "stats": stats,
-                    "resource": meta.get("resource"),
                     "last_analysis_date": meta.get("last_analysis_date"),
                     "first_submission_date": meta.get("first_submission_date"),
                 },
@@ -702,82 +777,62 @@ class LinkHeuristics:
             # --- Entropy ---
             entropy = self.domain_entropy(parsed)
 
-            tasks = [
-                asyncio.create_task(self.analyze_certificate(parsed)),
-                asyncio.create_task(self.domain_age(parsed)),
-                asyncio.create_task(self.scan_with_virustotal(parsed)),
-            ]
+            enrichment_results = {}
 
-            # Optional redirect chain
-            if self.include_redirects:
-                tasks.append(
-                    asyncio.create_task(get_redirect_chain(parsed, self._session))
+            tasks = {}
+            enrich = self.enrich or []
+
+            if "all" in enrich:
+                enrich = ["virustotal", "domain_age", "certificate", "redirects"]
+
+            if "virustotal" in enrich:
+                tasks["virustotal"] = self.scan_with_virustotal(parsed)
+
+            if "domain_age" in enrich:
+                tasks["domain_age"] = self.domain_age(parsed)
+
+            if "certificate" in enrich:
+                tasks["certificate"] = self.analyze_certificate(parsed)
+
+            if "redirects" in enrich:
+                tasks["redirect_chain"] = self.resolve_redirect_chain(
+                    parsed, self._session
                 )
 
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            certificate = (
-                results[0]
-                if not isinstance(results[0], Exception)
-                else {
-                    "flags": True,
-                    "reason": ["cert_analysis_failed"],
-                    "meta": {"error": str(results[0])},
-                }
-            )
-
-            domain_age_result = (
-                results[1]
-                if not isinstance(results[1], Exception)
-                else {
-                    "flags": True,
-                    "reason": ["whois_failed"],
-                    "meta": {"error": str(results[1])},
-                }
-            )
-
-            virustotal = (
-                results[2]
-                if not isinstance(results[2], Exception)
-                else {
-                    "flags": True,
-                    "reason": ["vt_scan_failed"],
-                    "meta": {"error": str(results[2])},
-                }
-            )
-
-            redirect_chain = results[3] if self.include_redirects else None
-            if self.include_redirects and isinstance(redirect_chain, Exception):
-                redirect_chain = {
-                    "error": f"redirect_check_failed: {str(redirect_chain)}"
-                }
+            if tasks:
+                results_data = await asyncio.gather(
+                    *tasks.values(), return_exceptions=True
+                )
+                for name, data in zip(tasks.keys(), results_data):
+                    if isinstance(data, Exception):
+                        data = {
+                            "flags": True,
+                            "reason": [f"{name}_failed"],
+                            "meta": {"error": str(data)},
+                        }
+                    enrichment_results[name] = data
 
             # --- Aggregate Flags ---
             aggregated_flags = set()
-            for result in heuristics.values():
-                if result.get("flags"):
-                    aggregated_flags.update(result.get("reason", []))
-            for result in [entropy, certificate, domain_age_result, virustotal]:
-                if result.get("flags"):
-                    aggregated_flags.update(result.get("reason", []))
-            if redirect_chain and redirect_chain.get("redirected", False):
-                aggregated_flags.add("redirected_url")
+            all_results = (
+                list(heuristics.values())
+                + [entropy]
+                + list(enrichment_results.values())
+            )
+            for r in all_results:
+                if isinstance(r, dict) and r.get("flags"):
+                    aggregated_flags.update(r.get("reason", []))
 
             # --- Final Result ---
-            result = {
+            final_result = {
                 "url": url,
                 "heuristics": heuristics,
                 "entropy": entropy,
-                "certificate": certificate,
-                "domain_age": domain_age_result,
-                "virustotal": virustotal,
             }
-            if redirect_chain:
-                result["redirect_chain"] = redirect_chain
+            final_result.update(enrichment_results)
+            final_result["aggregated_flags"] = sorted(aggregated_flags)
 
-            result["aggregated_flags"] = sorted(aggregated_flags)
-
-            return result
+            return final_result
 
         except Exception as e:
             return {
