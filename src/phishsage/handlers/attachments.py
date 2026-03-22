@@ -35,7 +35,7 @@ async def handle_attachments(args, mail):
         if not args.json:
             printer.print_attachment_hashes(hashes)
 
-    # === 4. VirusTotal ===
+    
     if args.vt_scan or args.yara:
         yara_engine = YaraEngine(rules_path=args.yara) if args.yara else None
         heur = AttachmentHeuristics(
@@ -45,6 +45,7 @@ async def handle_attachments(args, mail):
             yara_verbose=args.yara_verbose,
         )
 
+        # --- VirusTotal ---
         if args.vt_scan:
             results = await heur.vt_scan()
             cleaned_results = {}
@@ -63,13 +64,13 @@ async def handle_attachments(args, mail):
 
             if not args.json:
                 printer.print_vt_scan_attachments(results)
-
-            if args.yara:
-                results = heur.yara_scan()
-                json_output["yara_scan"] = results or {}
-                if not args.json:
-                    printer.print_yara_scan_attachments(
-                        results, verbose=args.yara_verbose
-                    )
+        # --- Yara ---
+        if args.yara:
+            results = heur.yara_scan()
+            json_output["yara_scan"] = results or {}
+            if not args.json:
+                printer.print_yara_scan_attachments(
+                    results, verbose=args.yara_verbose
+                )
 
     return json_output
