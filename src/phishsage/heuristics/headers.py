@@ -24,7 +24,6 @@ class HeaderHeuristics:
             self._resolver = aiodns.DNSResolver()
         return self._resolver
 
-
     def auth_check(self, headers) -> dict:
         """
         Parses SPF, DKIM, and DMARC results from Authentication-Results headers.
@@ -482,14 +481,18 @@ class HeaderHeuristics:
 
             # Creation date
             created = (
-                w.creation_date[0] if isinstance(w.creation_date, list) else w.creation_date
+                w.creation_date[0]
+                if isinstance(w.creation_date, list)
+                else w.creation_date
             )
             if isinstance(created, str):
                 created = parser.parse(created)
 
             # Expiration date
             expires = (
-                w.expiration_date[0] if isinstance(w.expiration_date, list) else w.expiration_date
+                w.expiration_date[0]
+                if isinstance(w.expiration_date, list)
+                else w.expiration_date
             )
             if isinstance(expires, str):
                 expires = parser.parse(expires)
@@ -551,7 +554,8 @@ class HeaderHeuristics:
 
         tasks = [
             self._whois_lookup(label, domain)
-            for label, domain in domains.items() if domain
+            for label, domain in domains.items()
+            if domain
         ]
 
         if not tasks:
@@ -591,17 +595,14 @@ class HeaderHeuristics:
                 {"type": "MX_MISSING", "message": "No domain provided for MX check"}
             )
             return {"flags": True, "result": result, "alerts": alerts, "meta": meta}
-   
+
         if self._resolver is None:
             self._resolver = aiodns.DNSResolver()
 
         try:
             resp = await self._resolver.query_dns(domain, "MX")
 
-            mx_records = sorted(
-                r.data.exchange.rstrip(".")
-                for r in resp.answer
-            )
+            mx_records = sorted(r.data.exchange.rstrip(".") for r in resp.answer)
 
             result["has_mx"] = bool(mx_records)
             result["records"] = mx_records
@@ -647,7 +648,7 @@ class HeaderHeuristics:
         flags = bool(alerts)
         return {"flags": flags, "result": result, "alerts": alerts, "meta": meta}
 
-    async def _check_spamhaus_dbl_lookup(self, label:str, domain: str) -> dict:
+    async def _check_spamhaus_dbl_lookup(self, label: str, domain: str) -> dict:
         entry = {"listed": False, "error": None}
         alerts = []
         meta = {
@@ -664,18 +665,22 @@ class HeaderHeuristics:
             result = await self._resolver.query_dns(query_domain, "A")
 
             if result.answer:
-                entry["listed"] = True
-                alerts.append(
-                    {
-                        "type": "DOMAIN_BLACKLISTED",
-                        "message": f"Domain {domain} is listed on Spamhaus DBL",
-                    }
-                )
+                for answer in result.answer:
+                    if hasattr(answer, "host") and answer.host.startswith("127.0.1."):
+                        entry["listed"] = True
+                        alerts.append(
+                            {
+                                "type": "DOMAIN_BLACKLISTED",
+                                "message": f"Domain {domain} is listed on Spamhaus DBL (IP: {answer.host})",
+                            }
+                        )
+                        break
+                    else:
+                        entry["listed"] = False
             else:
                 entry["listed"] = False
 
         except aiodns.error.DNSError as e:
-            
             if e.args and e.args[0] == aiodns.error.ARES_ENOTFOUND:
                 entry["listed"] = False
             else:
@@ -700,11 +705,12 @@ class HeaderHeuristics:
             "return_path": headers.return_path_domain,
         }
 
-        tasks = [self._check_spamhaus_dbl_lookup(label, domain) 
-                 for label, domain in domains.items()
-                 if domain]
+        tasks = [
+            self._check_spamhaus_dbl_lookup(label, domain)
+            for label, domain in domains.items()
+            if domain
+        ]
 
-        
         if not tasks:
             return {"flags": False, "result": {}, "alerts": [], "meta": {}}
 
@@ -719,16 +725,14 @@ class HeaderHeuristics:
             final_alerts.extend(alerts)
             final_meta[label] = meta
 
-
         return {
             "flags": bool(final_alerts),
             "result": final_results,
             "alerts": final_alerts,
-            "meta": final_meta
+            "meta": final_meta,
         }
 
-    
-    async def run_headers_heuristics(self, headers):
+    async def run_headers_heuristics(self, headers, enrich=None):
         """
         Runs all email header heuristics and aggregates results and alerts.
         """
@@ -763,27 +767,28 @@ class HeaderHeuristics:
         # ---- Date sanity ----
         date_alerts = self.check_date_vs_received(headers)
         alerts.extend(date_alerts["alerts"])
-        
-        tasks = [
-            asyncio.create_task(self.check_mx(headers)),
-            asyncio.create_task(self.check_spamhaus(headers)),
-            asyncio.create_task(self.domain_age_bulk(headers)),
-        ]
 
-        mx_data, spamhaus_data, domain_age_data = await asyncio.gather(*tasks)
+        tasks = {}
 
+        if enrich:
+            if "all" in enrich:
+                enrich = ["mx", "spamhaus", "domain_age"]
 
-        # ---- MX----
-        results["mx"] = mx_data["result"]
-        alerts.extend(mx_data["alerts"])
+            if "mx" in enrich:
+                tasks["mx"] = self.check_mx(headers)
 
-        # ---- Spamhaus ----
-        results["spamhaus"] = spamhaus_data["result"]
-        alerts.extend(spamhaus_data["alerts"])
+            if "spamhaus" in enrich:
+                tasks["spamhaus"] = self.check_spamhaus(headers)
 
-        # ---- Domain age ----
-        results["domain_age"] = domain_age_data["result"]
-        alerts.extend(domain_age_data["alerts"])
+            if "domain_age" in enrich:
+                tasks["domain_age"] = self.domain_age_bulk(headers)
+
+        if tasks:
+            results_data = await asyncio.gather(*tasks.values())
+
+            for name, data in zip(tasks.keys(), results_data):
+                results[name] = data["result"]
+                alerts.extend(data["alerts"])
 
         return {
             "flags": bool(alerts),
