@@ -1,5 +1,3 @@
-import json
-
 from phishsage.parsers import AttachmentProcessor
 from phishsage.clients import check_virustotal
 from phishsage.utils.yara_engine import YaraEngine

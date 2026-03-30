@@ -1,6 +1,4 @@
-import json
 import asyncio
-import aiohttp
 
 from phishsage.parsers import parse_url, extract_links
 from phishsage.heuristics import LinkHeuristics

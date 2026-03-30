@@ -1,5 +1,3 @@
-import json
-
 from phishsage.heuristics import HeaderHeuristics
 from phishsage.outputs import printer
 
