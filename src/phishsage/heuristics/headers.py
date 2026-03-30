@@ -136,7 +136,7 @@ class HeaderHeuristics:
 
         from_email = headers.from_email
         reply_to_email = headers.reply_to_email
-        return_path_email = headers.reply_to_email
+        return_path_email = headers.return_path_email
 
         meta = {
             "from_email": from_email,
