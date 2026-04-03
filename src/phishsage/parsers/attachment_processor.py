@@ -3,10 +3,15 @@ import re
 import base64
 import hashlib
 import mimetypes
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional
 
-import magic
+try:
+    import magic
+except ImportError as exc:
+    raise ImportError(
+        "Attachment analysis requires additional dependencies. "
+        "Install with: pip install phishsage[attachments]"
+    ) from exc
 
 
 class AttachmentProcessor:

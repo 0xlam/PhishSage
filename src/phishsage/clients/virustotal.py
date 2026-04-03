@@ -1,5 +1,11 @@
-import vt
-import base64
+try:
+    import vt
+except ImportError as exc:
+    raise ImportError(
+        "VirusTotal scanning requires additional dependencies. "
+        "Install with: pip install phishsage[virustotal]"
+    ) from exc
+
 from phishsage.config.loader import VIRUSTOTAL_API_KEY
 
 

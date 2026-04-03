@@ -5,16 +5,21 @@ import traceback
 from datetime import datetime, timezone
 from collections import Counter
 
-
 import asyncio
 import aiohttp
 import ipaddress
 import whois
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.x509.oid import NameOID
 from dateutil import parser
 
+try:
+    from cryptography import x509
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.x509.oid import NameOID
+except ImportError as exc:
+    raise ImportError(
+        "Link analysis requires additional dependencies. "
+        "Install with: pip install phishsage[links]"
+    ) from exc
 
 from phishsage.config.loader import (
     ABUSABLE_PLATFORM_DOMAINS,

@@ -2,9 +2,15 @@ import os
 import threading
 import logging
 from pathlib import Path
-from typing import List, Union, Iterable, Dict, Any, Optional
+from typing import List, Union, Iterable, Dict, Optional
 
-import yara
+try:
+    import yara
+except ImportError as exc:
+    raise ImportError(
+        "YARA scanning requires additional dependencies. "
+        "Install with: pip install phishsage[attachments]"
+    ) from exc
 
 
 class YaraEngine:
