@@ -13,6 +13,19 @@ authors = [
     { name = "Adams", email = "208283706+0xlam@users.noreply.github.com" }
 ]
 
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Security",
+]
+
+
 dependencies = [
     "mail-parser>=4.0,<5",
     "beautifulsoup4>=4.12,<5",
@@ -42,17 +55,6 @@ links = [
 
 all = [
     "phishsage[attachments,links]",
-]
-
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: System Administrators",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Topic :: Security",
 ]
 
 
