@@ -53,3 +53,14 @@
 ### Changed
 * Renamed `--scan` to `--vt-scan` for attachments and links subcommands.
 * Updated help descriptions.
+
+
+## [2.1.0] – 2026-04-03
+
+### Changed
+- Replaced exact version pins (`==`) with bounded ranges in `pyproject.toml`.
+- Removed transitive dependencies from `pyproject.toml`.
+
+### Added
+- Optional dependency groups: `[attachments]`, `[links]`, `[all]`.
+- Import guards with install hints for missing optional dependencies.
