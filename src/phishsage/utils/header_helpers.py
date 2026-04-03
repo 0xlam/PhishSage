@@ -1,14 +1,9 @@
 import re
-import os
-import io
 import hashlib
-from pathlib import Path
 
 import idna
 import tldextract
-import email
 from email.utils import parseaddr
-from email.header import decode_header
 from email_validator import validate_email, EmailNotValidError
 
 
@@ -118,7 +113,6 @@ def extract_display_name(raw_from):
     """
     Extract a display name from an email From header.
     """
-    pass
 
 
 def generate_email_id(msg_id, raw_mail_bytes, length=8):

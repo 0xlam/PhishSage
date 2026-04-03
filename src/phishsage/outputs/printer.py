@@ -1,6 +1,5 @@
 # outputs/printer.py
 
-import json
 from datetime import datetime
 
 WIDTH = 60
