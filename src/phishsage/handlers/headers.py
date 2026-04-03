@@ -1,4 +1,4 @@
-from phishsage.heuristics import HeaderHeuristics
+from phishsage.heuristics.headers import HeaderHeuristics
 from phishsage.outputs import printer
 
 

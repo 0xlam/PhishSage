@@ -1,7 +1,7 @@
-from phishsage.parsers import AttachmentProcessor
+from phishsage.parsers.attachment_processor import AttachmentProcessor
 from phishsage.clients import check_virustotal
 from phishsage.utils.yara_engine import YaraEngine
-from phishsage.heuristics import AttachmentHeuristics
+from phishsage.heuristics.attachments import AttachmentHeuristics
 from phishsage.outputs import printer
 
 

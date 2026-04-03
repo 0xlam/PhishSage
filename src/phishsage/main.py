@@ -1,12 +1,9 @@
 import asyncio
 import json
 import mailparser
-
 from phishsage.utils import get_parser
 from phishsage.parsers import extract_mail_headers
-from phishsage.handlers import handle_attachments, handle_headers, handle_links
 from phishsage.outputs import printer
-
 
 def main():
     parser = get_parser()
@@ -16,11 +13,8 @@ def main():
     if args.mode in ("headers", "links"):
         if args.enrich and not args.heuristics:
             parser.error("--enrich requires --heuristics")
-
-
         if args.enrich == []:
             args.enrich = ["all"]
-
 
     if not args.file:
         printer.print_error("Missing input file. Use --file <path.eml>")
@@ -40,7 +34,6 @@ def main():
         return
 
     mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
-
     output = asyncio.run(run(args, parsed_mail, mail_headers))
 
     if args.json and output:
@@ -48,16 +41,15 @@ def main():
 
 
 async def run(args, mail, mail_headers):
-
     if args.mode == "attachments":
+        from phishsage.handlers.attachments import handle_attachments
         return await handle_attachments(args, mail)
-
     elif args.mode == "links":
+        from phishsage.handlers.links import handle_links
         return await handle_links(args, mail)
-
     elif args.mode == "headers":
+        from phishsage.handlers.headers import handle_headers
         return await handle_headers(args, mail_headers)
-
     else:
         printer.print_error(f"Unknown mode: {args.mode}")
         return None

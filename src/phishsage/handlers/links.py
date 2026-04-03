@@ -1,7 +1,7 @@
 import asyncio
 
 from phishsage.parsers import parse_url, extract_links
-from phishsage.heuristics import LinkHeuristics
+from phishsage.heuristics.links import LinkHeuristics
 from phishsage.outputs import printer
 
 
