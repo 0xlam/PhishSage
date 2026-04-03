@@ -54,12 +54,16 @@ PhishSage is intentionally minimal and concentrates on these essential capabilit
   * Flags URLs with excessively deep paths
 
 
----
-
 ## 2. Installation
 
+### Base Install
+
+Installs core functionality: header analysis and basic email parsing.
 ```bash
-# Option A: Install from GitHub
+# From PyPI
+pip install phishsage
+
+# From GitHub
 git clone https://github.com/0xlam/PhishSage.git
 cd PhishSage
 python3 -m venv venv
@@ -71,22 +75,37 @@ source venv/bin/activate
 venv\Scripts\Activate.ps1
 
 pip install -e .
+```
 
-# ---------------------------------------------------
+---
 
-# Option B: Install from PyPI
-pip install phishsage
+### Optional Extras
 
-# ---------------------------------------------------
+Install only what you need:
+```bash
+# Attachment analysis (YARA scanning, MIME detection)
+pip install "phishsage[attachments]"
 
-# (Optional) Configure VirusTotal API key
+# Link / URL analysis
+pip install "phishsage[links]"
+
+# Everything
+pip install "phishsage[all]"
+```
+
+---
+
+### VirusTotal API Key
+
+Required if using `--vt-scan` in any mode.
+```bash
 # Linux / macOS
 export VIRUSTOTAL_API_KEY="your_virustotal_api_key"
 
 # Windows (PowerShell)
 setx VIRUSTOTAL_API_KEY "your_virustotal_api_key"
-
 ```
+
 
 ## 3. CLI Usage
 
