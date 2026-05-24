@@ -128,13 +128,19 @@ class LinkHeuristics:
                 name="suspicious_tld", flags=False, reasons=["missing_suffix"], meta={}
             )
 
-        flags = suffix in self.config.SUSPICIOUS_TLDS or suffix.startswith("xn--")
+        is_known_suspicious = suffix in self.config.SUSPICIOUS_TLDS
+        is_punycode = suffix.startswith("xn--")
+        is_non_ascii = not suffix.isascii()
+
+        flags = is_known_suspicious or is_punycode or is_non_ascii
 
         reasons = []
-        if suffix in self.config.SUSPICIOUS_TLDS:
+        if is_known_suspicious:
             reasons.append("known_suspicious_tld")
-        if suffix.startswith("xn--"):
+        if is_punycode:
             reasons.append("punycode_tld")
+        if is_non_ascii:
+            reasons.append("non_ascii_tld")
 
         return LinkHeuristicResult(
             name="suspicious_tld",
