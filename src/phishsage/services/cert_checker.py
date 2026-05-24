@@ -3,10 +3,16 @@ import socket
 import asyncio
 from datetime import datetime, timezone
 
+try:
+    from cryptography import x509
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.x509.oid import NameOID
+except ImportError as exc:
+    raise ImportError(
+        "Link analysis requires additional dependencies. "
+        "Install with: pip install phishsage[links]"
+    ) from exc
 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.x509.oid import NameOID
 
 from phishsage.models.certificate import CertificateResult
 
