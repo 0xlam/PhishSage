@@ -1,6 +1,6 @@
-from dataclasses import dataclass
 from yarl import URL
 import tldextract
+from phishsage.models.links import ParsedURL
 
 
 def extract_domain_parts(host: str):
@@ -12,20 +12,6 @@ def extract_domain_parts(host: str):
 
     except Exception:
         return (None,) * 4
-
-
-@dataclass(frozen=True)
-class ParsedURL:
-    raw: str
-    normalized: str
-    scheme: str
-    hostname: str
-    registered_domain: str
-    domain: str
-    subdomain: str
-    suffix: str
-    path: str
-    query: str
 
 
 def parse_url(url: str) -> ParsedURL | None:
