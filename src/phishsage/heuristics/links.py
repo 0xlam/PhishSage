@@ -1,42 +1,9 @@
-import socket
 import math
-import ssl
-import traceback
-from datetime import datetime, timezone
+import asyncio
+import ipaddress
 from collections import Counter
 
-import asyncio
-import aiohttp
-import ipaddress
-import whois
-from dateutil import parser
-
-try:
-    from cryptography import x509
-    from cryptography.hazmat.backends import default_backend
-    from cryptography.x509.oid import NameOID
-except ImportError as exc:
-    raise ImportError(
-        "Link analysis requires additional dependencies. "
-        "Install with: pip install phishsage[links]"
-    ) from exc
-
-from phishsage.config.loader import (
-    ABUSABLE_PLATFORM_DOMAINS,
-    CERT_RECENT_ISSUE_DAYS_THRESHOLD,
-    ENTROPY_THRESHOLD,
-    MAX_PATH_DEPTH,
-    SHORTENERS,
-    SSL_DEFAULT_PORT,
-    SUBDOMAIN_THRESHOLD,
-    SUSPICIOUS_TLDS,
-    THRESHOLD_EXPIRING,
-    THRESHOLD_YOUNG,
-    TRIVIAL_SUBDOMAINS,
-    MAX_REDIRECTS,
-)
-
-from phishsage.clients import check_virustotal
+from phishsage.models.results import LinkHeuristicResult
 from phishsage.parsers import parse_url
 
 
@@ -49,806 +16,557 @@ def shannon_entropy(s):
 
 
 class LinkHeuristics:
-    """docstring for LinkHeuristics"""
 
-    def __init__(self, vt_throttle: float = 1.0, enrich=None):
-        self.vt_throttle = vt_throttle
+    def __init__(
+        self,
+        config,
+        whois_lookup=None,
+        vt_lookup=None,
+        redirect_lookup=None,
+        ssl_fetcher=None,
+        enrich=None,
+    ):
+
+        self.config = config
+
+        self.whois_lookup = whois_lookup
+        self.vt_lookup = vt_lookup
+        self.ssl_fetcher = ssl_fetcher
+        self.redirect_lookup = redirect_lookup
+
         self.enrich = enrich or []
-        self._session = None
 
-    async def __aenter__(self):
-        self._session = aiohttp.ClientSession()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self._session:
-            await self._session.close()
-            self._session = None
-
-    async def analyze_certificate(self, parsed) -> dict:
-
+    async def analyze_certificate(self, parsed) -> LinkHeuristicResult:
         hostname = parsed.hostname
 
         if not hostname:
-            return {"flags": False, "reason": ["invalid_url"], "meta": {}}
-
-        def cert_check(hostname):
-
-            result = {
-                "flags": False,
-                "reason": [],
-                "meta": {},
-            }
-
-            try:
-
-                socket.setdefaulttimeout(10)
-                cert_pem = ssl.get_server_certificate((hostname, SSL_DEFAULT_PORT))
-
-                cert = x509.load_pem_x509_certificate(
-                    cert_pem.encode(), default_backend()
-                )
-
-                now = datetime.now(timezone.utc)
-                valid_from = cert.not_valid_before_utc
-                valid_to = cert.not_valid_after_utc
-
-                days_since_issued = (now - valid_from).total_seconds() / 86400
-                days_until_expiry = (valid_to - now).total_seconds() / 86400
-
-                # Flags
-                if now >= valid_to:
-                    result["flags"] = True
-                    result["reason"].append("expired_certificate")
-                if 0 <= days_since_issued <= CERT_RECENT_ISSUE_DAYS_THRESHOLD:
-                    result["flags"] = True
-                    result["reason"].append("recently_issued_certificate")
-
-                # Meta
-                issuer_cn = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
-                subject_cn = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
-
-                result["meta"] = {
-                    "hostname": hostname,
-                    "issuer_cn": issuer_cn[0].value if issuer_cn else None,
-                    "subject_cn": subject_cn[0].value if subject_cn else None,
-                    "valid_from": valid_from.isoformat(),
-                    "valid_to": valid_to.isoformat(),
-                    "days_since_issued": int(days_since_issued),
-                    "days_until_expiry": int(days_until_expiry),
-                }
-
-            except socket.timeout:
-                result = {
-                    "flags": True,
-                    "reason": ["ssl_handshake_timeout"],
-                    "meta": {"hostname": hostname, "error": "Connection timeout"},
-                }
-            except ssl.SSLError as e:
-                msg = str(e).upper()
-                reason = []
-                if "CERTIFICATE_VERIFY_FAILED" in msg:
-                    reason = ["certificate verification failed"]
-                elif "WRONG_VERSION_NUMBER" in msg:
-                    reason = ["tls_protocol_mismatch"]
-                elif "HANDSHAKE_FAILURE" in msg:
-                    reason = ["handshake_failure"]
-                else:
-                    reason = ["ssl_error"]
-                result = {
-                    "flags": True,
-                    "reason": reason,
-                    "meta": {"hostname": hostname, "error": str(e)},
-                }
-            except ConnectionRefusedError:
-                result = {
-                    "flags": True,
-                    "reason": ["connection_refused"],
-                    "meta": {"hostname": hostname, "error": "Connection refused"},
-                }
-            except Exception as e:
-                result = {
-                    "flags": True,
-                    "reason": ["unhandled_exception"],
-                    "meta": {"hostname": hostname, "error": str(e)},
-                }
-
-            return result
-
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(cert_check, hostname), timeout=15
+            return LinkHeuristicResult(
+                name="certificate",
+                flags=False,
+                reasons=["missing_hostname"],
+                meta={},
             )
-        except asyncio.TimeoutError:
-            return {
-                "flags": True,
-                "reason": ["operation_timeout"],
-                "meta": {"hostname": hostname, "error": "Certificate check timed out"},
-            }
 
-    def domain_entropy(self, parsed) -> dict:
-        """
-        Flags URLs where the domain label or subdomain has suspiciously high Shannon entropy
-        """
-        entropy_threshold = ENTROPY_THRESHOLD
+        if not self.ssl_fetcher:
+            return LinkHeuristicResult(
+                name="certificate",
+                flags=False,
+                reasons=["missing_ssl_service"],
+                meta={"hostname": hostname},
+            )
 
         try:
-            registered_domain = parsed.registered_domain
-            domain_label = parsed.domain
-            subdomain = parsed.subdomain
+            cert = await self.ssl_fetcher(hostname)
 
-            subdomain = subdomain or ""
-            domain_label = domain_label or ""
+            flags = False
+            reasons = []
 
-            subdomain_ent = shannon_entropy(subdomain)
-            domain_ent = shannon_entropy(domain_label)
+            if cert.days_until_expiry < 0:
+                flags = True
+                reasons.append("expired_certificate")
 
-            sub_high = len(subdomain) >= 8 and subdomain_ent >= entropy_threshold
-            domain_high = len(domain_label) >= 6 and domain_ent >= entropy_threshold
+            if 0 <= cert.days_since_issued <= self.config.CERT_RECENT_ISSUE_DAYS_THRESHOLD:
+                flags = True
+                reasons.append("recently_issued_certificate")
 
-            flag = sub_high or domain_high
-
-            reason = []
-            if sub_high:
-                reason.append("high_subdomain_entropy")
-            if domain_high:
-                reason.append("high_domain_entropy")
-
-            return {
-                "flags": flag,
-                "reason": reason,
-                "meta": {
-                    "registered_domain": registered_domain,
-                    "domain_label": domain_label,
-                    "subdomain": subdomain,
-                    "subdomain_entropy": round(subdomain_ent, 3),
-                    "domain_entropy": round(domain_ent, 3),
-                    "entropy_threshold": entropy_threshold,
+            return LinkHeuristicResult(
+                name="certificate",
+                flags=flags,
+                reasons=reasons,
+                meta={
+                    "hostname": hostname,
+                    "issuer": cert.issuer,
+                    "subject": cert.subject,
+                    "valid_from": cert.valid_from,
+                    "valid_to": cert.valid_to,
+                    "days_since_issued": cert.days_since_issued,
+                    "days_until_expiry": cert.days_until_expiry,
                 },
-            }
+            )
 
         except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["entropy_calculation_failed"],
-                "meta": {
-                    "registered_domain": None,
-                    "domain_label": None,
-                    "subdomain": None,
-                    "subdomain_entropy": None,
-                    "domain_entropy": None,
-                    "entropy_threshold": entropy_threshold,
-                    "error": str(e),
-                },
-            }
+            return LinkHeuristicResult(
+                name="certificate",
+                flags=True,
+                reasons=["certificate_check_failed"],
+                meta={"hostname": hostname, "error": str(e)},
+            )
 
-    def has_suspicious_tld(self, parsed) -> dict:
-        """
-        Checks if the URL's top-level domain (TLD) is in a known list of suspicious TLDs.
-        """
+    def domain_entropy(self, parsed) -> LinkHeuristicResult:
+        sub = parsed.subdomain or ""
+        dom = parsed.domain or ""
+
+        sub_ent = shannon_entropy(sub)
+        dom_ent = shannon_entropy(dom)
+
+        flags = False
+        reasons = []
+
+        if len(sub) >= 8 and sub_ent >= self.config.ENTROPY_THRESHOLD:
+            flags = True
+            reasons.append("high_subdomain_entropy")
+
+        if len(dom) >= 6 and dom_ent >= self.config.ENTROPY_THRESHOLD:
+            flags = True
+            reasons.append("high_domain_entropy")
+
+        return LinkHeuristicResult(
+            name="domain_entropy",
+            flags=flags,
+            reasons=reasons,
+            meta={
+                "subdomain_entropy": sub_ent,
+                "domain_entropy": dom_ent,
+            },
+        )
+
+    def has_suspicious_tld(self, parsed) -> LinkHeuristicResult:
+        suffix = parsed.suffix
+
+        if not suffix:
+            return LinkHeuristicResult(
+                name="suspicious_tld", flags=False, reasons=["missing_suffix"], meta={}
+            )
+
+        flags = suffix in self.config.SUSPICIOUS_TLDS or suffix.startswith("xn--")
+
+        reasons = []
+        if suffix in self.config.SUSPICIOUS_TLDS:
+            reasons.append("known_suspicious_tld")
+        if suffix.startswith("xn--"):
+            reasons.append("punycode_tld")
+
+        return LinkHeuristicResult(
+            name="suspicious_tld",
+            flags=flags,
+            reasons=reasons,
+            meta={"suffix": suffix},
+        )
+
+    def is_ip_url(self, parsed) -> LinkHeuristicResult:
+        hostname = parsed.hostname
+
+        if not hostname:
+            return LinkHeuristicResult(
+                name="ip_url", flags=True, reasons=["no_hostname"], meta={}
+            )
+
         try:
-            registered_domain = parsed.registered_domain
-            public_suffix = parsed.suffix
+            ip = ipaddress.ip_address(hostname)
 
-            if not public_suffix:
-                return {
-                    "flags": False,
-                    "reason": ["no_public_suffix_extracted"],
-                    "meta": {
-                        "registered_domain": (
-                            registered_domain if registered_domain else None
-                        ),
-                        "public_suffix": None,
-                    },
-                }
-
-            is_known_suspicious = public_suffix in SUSPICIOUS_TLDS
-            is_punycode = public_suffix.startswith("xn--")
-            flag = is_known_suspicious or is_punycode
-
-            reason = []
-            if is_known_suspicious:
-                reason.append("known_suspicious_tld")
-
-            if is_punycode:
-                reason.append("punycode_tld")
-
-            return {
-                "flags": flag,
-                "reason": reason,
-                "meta": {
-                    "registered_domain": registered_domain,
-                    "public_suffix": public_suffix,
+            return LinkHeuristicResult(
+                name="ip_url",
+                flags=True,
+                reasons=["ip_based_url"],
+                meta={
+                    "hostname": hostname,
+                    "ip_version": ip.version,
                 },
-            }
+            )
 
-        except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["tld_check_failed"],
-                "meta": {
-                    "registered_domain": None,
-                    "public_suffix": None,
-                    "error": str(e),
-                },
-            }
+        except ValueError:
+            return LinkHeuristicResult(
+                name="ip_url",
+                flags=False,
+                reasons=[],
+                meta={"hostname": hostname},
+            )
 
-    def is_ip_url(self, parsed) -> dict:
-        """Detects if a URL directly uses an IP address instead of a domain name."""
-        try:
-            hostname = parsed.hostname
-            registered_domain = parsed.registered_domain
+    def too_many_subdomains(self, parsed) -> LinkHeuristicResult:
+        threshold = self.config.SUBDOMAIN_THRESHOLD
 
-            if not hostname:
-                return {
-                    "flags": True,
-                    "reason": ["no_hostname_extracted"],
-                    "meta": {
-                        "registered_domain": None,
-                        "hostname": None,
-                    },
-                }
+        sub = parsed.subdomain or ""
 
-            try:
-                ip_obj = ipaddress.ip_address(hostname)
-                return {
-                    "flags": True,
-                    "reason": ["ip_based_url"],
-                    "meta": {
-                        "registered_domain": None,
-                        "hostname": hostname,
-                        "ip_version": ip_obj.version,
-                    },
-                }
+        if not sub:
+            return LinkHeuristicResult(
+                name="subdomains",
+                flags=False,
+                reasons=[],
+                meta={"subdomain_count": 0},
+            )
 
-            except ValueError:
-                # Not an IP
+        parts = [p for p in sub.split(".") if p]
 
-                return {
-                    "flags": False,
-                    "reason": [],
-                    "meta": {
-                        "registered_domain": registered_domain,
-                        "hostname": hostname,
-                    },
-                }
-
-        except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["ip_url_check_failed"],
-                "meta": {
-                    "registered_domain": None,
-                    "hostname": None,
-                    "error": str(e),
-                },
-            }
-
-    def too_many_subdomains(self, parsed) -> dict:
-        """
-        Detect whether a URL contains an excessive number of suspicious subdomains.
-        Trivial subdomains like 'www' are ignored.
-        """
-        threshold = SUBDOMAIN_THRESHOLD
-
-        def looks_like_junk(label: str) -> bool:
+        def junk(label: str) -> bool:
             if not label:
                 return True
             digit_ratio = sum(c.isdigit() for c in label) / len(label)
             return digit_ratio > 0.4
 
-        try:
+        suspicious = [
+            p
+            for p in parts
+            if p.lower() not in self.config.TRIVIAL_SUBDOMAINS
+            and len(p) > 2
+            and junk(p)
+        ]
 
-            registered_domain = parsed.registered_domain
-            subdomain = parsed.subdomain
+        flags = len(suspicious) >= threshold
 
-            if not subdomain:
-                return {
-                    "flags": False,
-                    "reason": [],
-                    "meta": {
-                        "registered_domain": registered_domain,
-                        "subdomain": None,
-                        "suspicious_count": 0,
-                        "threshold": threshold,
-                        "suspicious_subdomains": [],
-                    },
-                }
-
-            parts = [p for p in subdomain.split(".") if p]
-
-            suspicious_parts = []
-            for p in parts:
-                lower_p = p.lower()
-
-                if lower_p in TRIVIAL_SUBDOMAINS:
-                    continue
-
-                if len(p) <= 2:
-                    continue
-
-                if looks_like_junk(p):
-                    suspicious_parts.append(p)
-
-            suspicious_count = len(suspicious_parts)
-            is_excessive = suspicious_count >= threshold
-
-            return {
-                "flags": is_excessive,
-                "reason": ["excessive_suspicious_subdomains"] if is_excessive else [],
-                "meta": {
-                    "registered_domain": registered_domain,
-                    "subdomain": subdomain,
-                    "suspicious_count": suspicious_count,
-                    "threshold": threshold,
-                    "suspicious_subdomains": suspicious_parts,
-                },
-            }
-
-        except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["subdomain_analysis_failed"],
-                "meta": {
-                    "registered_domain": None,
-                    "subdomain": None,
-                    "suspicious_count": None,
-                    "threshold": threshold,
-                    "suspicious_subdomains": [],
-                    "error": str(e),
-                },
-            }
-
-    def is_shortened_url(self, parsed) -> dict:
-        """Check whether the URL uses a known URL shortening service."""
-        try:
-            registered_domain = parsed.registered_domain
-
-            if not registered_domain:
-                return {
-                    "flags": False,
-                    "reason": ["no_registered_domain"],
-                    "meta": {
-                        "registered_domain": None,
-                        "matched_shortener": None,
-                    },
-                }
-
-            registered_domain_lower = registered_domain.lower()
-            shorteners = [s.lower() for s in SHORTENERS]
-
-            matched_shortener = next(
-                (s for s in shorteners if registered_domain_lower == s),
-                None,
-            )
-
-            is_shortened = matched_shortener is not None
-
-            return {
-                "flags": is_shortened,
-                "reason": ["url_shortening_service"] if is_shortened else [],
-                "meta": {
-                    "registered_domain": registered_domain,
-                    "matched_shortener": matched_shortener,
-                },
-            }
-
-        except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["shortened_url_check_failed"],
-                "meta": {
-                    "registered_domain": None,
-                    "matched_shortener": None,
-                    "error": str(e),
-                },
-            }
-
-    def uses_abusable_platform(self, parsed) -> dict:
-        """Detect whether a URL uses a commonly abused web platform or service."""
-        try:
-            registered_domain = parsed.registered_domain
-
-            if not registered_domain:
-                return {
-                    "flags": False,
-                    "reason": ["no_registered_domain"],
-                    "meta": {
-                        "registered_domain": None,
-                        "matched_platform": None,
-                    },
-                }
-
-            registered_domain = registered_domain.lower()
-            platforms = [d.lower() for d in ABUSABLE_PLATFORM_DOMAINS]
-
-            matched = next(
-                (
-                    p
-                    for p in platforms
-                    if registered_domain == p or registered_domain.endswith("." + p)
-                ),
-                None,
-            )
-
-            return {
-                "flags": matched is not None,
-                "reason": ["abusable_platform"] if matched else [],
-                "meta": {
-                    "registered_domain": registered_domain,
-                    "matched_platform": matched,
-                },
-            }
-
-        except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["abusable_platform_check_failed"],
-                "meta": {
-                    "registered_domain": None,
-                    "matched_platform": None,
-                    "error": str(e),
-                },
-            }
-
-    def excessive_path_depth(self, parsed) -> dict:
-        """Check if the URL path has excessive depth."""
-
-        max_depth = MAX_PATH_DEPTH
-
-        try:
-            registered_domain = parsed.registered_domain
-
-            path = parsed.path or "/"
-
-            depth = len([segment for segment in path.split("/") if segment])
-            is_excessive = depth > max_depth
-
-            return {
-                "flags": is_excessive,
-                "reason": ["excessive_path_depth"] if is_excessive else [],
-                "meta": {
-                    "registered_domain": registered_domain,
-                    "path": path,
-                    "depth": depth,
-                    "max_allowed": max_depth,
-                },
-            }
-
-        except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["path_depth_check_failed"],
-                "meta": {
-                    "registered_domain": None,
-                    "path": None,
-                    "depth": None,
-                    "max_allowed": max_depth,
-                    "error": str(e),
-                },
-            }
-
-    def is_numeric_domain(self, parsed) -> dict:
-
-        try:
-            registered_domain = parsed.registered_domain
-            domain_label = parsed.domain
-
-            if not domain_label:
-                return {
-                    "flags": False,
-                    "reason": ["no_domain_label_extracted"],
-                    "meta": {
-                        "registered_domain": None,
-                        "domain_label": None,
-                    },
-                }
-
-            is_numeric = domain_label.isdigit()
-
-            return {
-                "flags": is_numeric,
-                "reason": ["numeric_domain"] if is_numeric else [],
-                "meta": {
-                    "registered_domain": registered_domain,
-                    "domain_label": domain_label,
-                },
-            }
-
-        except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["numeric_domain_check_failed"],
-                "meta": {
-                    "registered_domain": None,
-                    "domain_label": None,
-                    "error": str(e),
-                },
-            }
-
-    async def domain_age(self, parsed) -> dict:
-        """
-        Flags True if domain is newly registered, expiring soon, or WHOIS failed.
-        """
-        result = {
-            "flags": False,
-            "reason": [],
-            "meta": {
-                "registered_domain": parsed.registered_domain,
-                "age_days": None,
-                "expiry_days_left": None,
+        return LinkHeuristicResult(
+            name="subdomains",
+            flags=flags,
+            reasons=["excessive_suspicious_subdomains"] if flags else [],
+            meta={
+                "subdomain": sub,
+                "suspicious": suspicious,
+                "threshold": threshold,
             },
-        }
+        )
 
-        threshold_young = THRESHOLD_YOUNG
-        threshold_expiring = THRESHOLD_EXPIRING
+    def is_shortened_url(self, parsed) -> LinkHeuristicResult:
+        domain = parsed.registered_domain
+
+        if not domain:
+            return LinkHeuristicResult(
+                name="shortened_url", flags=False, reasons=["missing_domain"], meta={}
+            )
+
+        domain = domain.lower()
+
+        match = next((s for s in self.config.SHORTENERS if s.lower() == domain), None)
+
+        flags = match is not None
+
+        return LinkHeuristicResult(
+            name="shortened_url",
+            flags=flags,
+            reasons=["url_shortener"] if flags else [],
+            meta={
+                "domain": domain,
+                "matched": match,
+            },
+        )
+
+    def uses_abusable_platform(self, parsed) -> LinkHeuristicResult:
+        domain = parsed.registered_domain
+
+        if not domain:
+            return LinkHeuristicResult(
+                name="abusable_platform",
+                flags=False,
+                reasons=["missing_domain"],
+                meta={},
+            )
+
+        domain = domain.lower()
+
+        match = next(
+            (
+                p
+                for p in self.config.ABUSABLE_PLATFORM_DOMAINS
+                if domain == p or domain.endswith("." + p)
+            ),
+            None,
+        )
+
+        return LinkHeuristicResult(
+            name="abusable_platform",
+            flags=match is not None,
+            reasons=["abusable_platform"] if match else [],
+            meta={"matched": match},
+        )
+
+    def excessive_path_depth(self, parsed) -> LinkHeuristicResult:
+        path = parsed.path or "/"
+        depth = len([p for p in path.split("/") if p])
+
+        flags = depth > self.config.MAX_PATH_DEPTH
+
+        return LinkHeuristicResult(
+            name="path_depth",
+            flags=flags,
+            reasons=["excessive_path_depth"] if flags else [],
+            meta={
+                "path": path,
+                "depth": depth,
+                "max": self.config.MAX_PATH_DEPTH,
+            },
+        )
+
+    def is_numeric_domain(self, parsed) -> LinkHeuristicResult:
+        label = parsed.domain
+
+        if not label:
+            return LinkHeuristicResult(
+                name="numeric_domain",
+                flags=False,
+                reasons=["missing_domain_label"],
+                meta={},
+            )
+
+        flags = label.isdigit()
+
+        return LinkHeuristicResult(
+            name="numeric_domain",
+            flags=flags,
+            reasons=["numeric_domain"] if flags else [],
+            meta={"domain": label},
+        )
+
+    async def domain_age(self, parsed) -> LinkHeuristicResult:
+        domain = parsed.registered_domain
+
+        if not domain:
+            return LinkHeuristicResult(
+                name="domain_age",
+                flags=False,
+                reasons=["missing_registered_domain"],
+                meta={
+                    "registered_domain": None,
+                },
+            )
+
+        if not self.whois_lookup:
+            return LinkHeuristicResult(
+                name="domain_age",
+                flags=False,
+                reasons=["missing_whois_service"],
+                meta={
+                    "registered_domain": domain,
+                },
+            )
 
         try:
-            w = await asyncio.to_thread(whois.whois, parsed.registered_domain)
+            w = await self.whois_lookup(domain)
 
-            # Handle creation date
-            created = w.creation_date
-            if isinstance(created, list):
-                created = created[0]
-            if isinstance(created, str):
-                created = parser.parse(created)
+            flags = False
+            reasons = []
 
-            # Handle expiration date
-            expires = w.expiration_date
-            if isinstance(expires, list):
-                expires = expires[0]
-            if isinstance(expires, str):
-                expires = parser.parse(expires)
+            if (
+                w.age_days is not None
+                and w.age_days < self.config.THRESHOLD_YOUNG
+            ):
+                flags = True
+                reasons.append("young_domain")
 
-            now = datetime.now(timezone.utc)
+            if (
+                w.expiry_days is not None
+                and w.expiry_days <= self.config.THRESHOLD_EXPIRING
+            ):
+                flags = True
+                reasons.append("domain_expiring_soon")
 
-            # Normalize timezone
-            if created:
-                if created.tzinfo is None:
-                    created = created.replace(tzinfo=timezone.utc)
-                else:
-                    created = created.astimezone(timezone.utc)
-                result["meta"]["age_days"] = (now - created).days
-                if result["meta"]["age_days"] < threshold_young:
-                    result["flags"] = True
-                    result["reason"].append("young_domain")
-
-            if expires:
-                if expires.tzinfo is None:
-                    expires = expires.replace(tzinfo=timezone.utc)
-                else:
-                    expires = expires.astimezone(timezone.utc)
-                result["meta"]["expiry_days_left"] = (expires - now).days
-                if result["meta"]["expiry_days_left"] <= threshold_expiring:
-                    result["flags"] = True
-                    result["reason"].append("domain_expiring_soon")
+            return LinkHeuristicResult(
+                name="domain_age",
+                flags=flags,
+                reasons=reasons,
+                meta={
+                    "registered_domain": domain,
+                    "age_days": w.age_days,
+                    "expiry_days": w.expiry_days,
+                    "created_at": (
+                        w.created_at.isoformat()
+                        if w.created_at
+                        else None
+                    ),
+                    "expires_at": (
+                        w.expires_at.isoformat()
+                        if w.expires_at
+                        else None
+                    ),
+                    "registrar": w.registrar,
+                    "young_threshold": self.config.THRESHOLD_YOUNG,
+                    "expiry_threshold": self.config.THRESHOLD_EXPIRING,
+                },
+            )
 
         except Exception as e:
-            err_msg = str(e).splitlines()[0] if str(e) else "Unknown WHOIS error"
-            result["flags"] = True
-            result["reason"].append("whois_lookup_failed")
-            result["meta"]["error"] = err_msg
+            return LinkHeuristicResult(
+                name="domain_age",
+                flags=True,
+                reasons=["whois_lookup_failed"],
+                meta={
+                    "registered_domain": domain,
+                    "error": str(e),
+                },
+            )
 
-        return result
-
-    async def resolve_redirect_chain(
-        self,
-        parsed,
-        max_redirects=MAX_REDIRECTS,
-    ):
-
+    async def scan_virustotal(self, parsed) -> LinkHeuristicResult:
         url = parsed.normalized
 
-        if not self._session:
-            raise RuntimeError("LinkHeuristics must be used within an async context")
+        if not self.vt_lookup:
+            return LinkHeuristicResult(
+                name="virustotal",
+                flags=False,
+                reasons=["missing_vt_service"],
+                meta={},
+            )
 
         try:
-            async with self._session.get(
-                url,
-                allow_redirects=True,
-                max_redirects=max_redirects,
-            ) as response:
+            vt = await self.vt_lookup(url)
 
-                history = response.history
-
-                chain = [r.url.human_repr() for r in history] + [
-                    response.url.human_repr()
-                ]
-
-                statuses = [r.status for r in history] + [response.status]
-
-                final_url = response.url.human_repr()
-                redirect_count = len(chain) - 1
-
-                return {
-                    "original_url": url,
-                    "redirect_chain": chain,
-                    "status_codes": statuses,
-                    "final_url": final_url,
-                    "final_status": response.status,
-                    "redirect_count": redirect_count,
-                    "redirected": redirect_count > 0,
-                }
-
-        except aiohttp.TooManyRedirects:
-            return {
-                "original_url": url,
-                "error": "Too many redirects",
-                "redirect_chain": [],
-                "status_codes": [],
-                "redirect_count": max_redirects,
-                "redirected": True,
-            }
-
-        except asyncio.TimeoutError:
-            return {
-                "original_url": url,
-                "error": "Request timeout",
-                "redirect_chain": [],
-                "status_codes": [],
-                "redirect_count": 0,
-                "redirected": False,
-            }
-
-        except aiohttp.ClientError as e:
-            return {
-                "original_url": url,
-                "error": str(e),
-                "redirect_chain": [],
-                "status_codes": [],
-                "redirect_count": 0,
-                "redirected": False,
-            }
-
-    async def scan_with_virustotal(self, parsed) -> dict:
-        """
-        Scan a URL with VirusTotal and return flags, reason, and meta.
-        Flags True if malicious/suspicious or if scan failed.
-        """
-        url = parsed.normalized
-
-        try:
-            vt_result = await check_virustotal(url=url)
-
-            status = vt_result.get("status")
-            reason_from_vt = vt_result.get("reason")
-            meta = vt_result.get("meta", {})
-
-            if status != "rate_limited":
-                await asyncio.sleep(self.vt_throttle)
-
-            # Handle non-success
-            if status != "ok":
-                return {
-                    "flags": False if status == "not_found" else True,
-                    "reason": (
-                        [f"vt_{reason_from_vt}"] if reason_from_vt else [f"vt_{status}"]
-                    ),
-                    "meta": {
-                        "status": status,
-                        "stats": None,
-                        "resource": meta.get("resource"),
+            if vt.status != "ok":
+                return LinkHeuristicResult(
+                    name="virustotal",
+                    flags=True,
+                    reasons=["vt_error"],
+                    meta={
+                        "status": vt.status,
+                        "resource": vt.resource,
+                        "error": getattr(vt, "error", None),
                     },
-                }
+                )
 
-            stats = meta.get("last_analysis_stats", {})
+            stats = vt.stats
 
-            malicious = stats.get("malicious", 0) > 0
-            suspicious = stats.get("suspicious", 0) > 0
-            is_flagged = malicious or suspicious
-
+            flags = stats.malicious > 0 or stats.suspicious > 0
             reasons = []
-            if malicious:
+
+            if stats.malicious > 0:
                 reasons.append("vt_malicious")
-            elif suspicious:
+            elif stats.suspicious > 0:
                 reasons.append("vt_suspicious")
 
-            return {
-                "flags": is_flagged,
-                "reason": reasons,
-                "meta": {
-                    "status": "ok",
-                    "stats": stats,
-                    "last_analysis_date": meta.get("last_analysis_date"),
-                    "first_submission_date": meta.get("first_submission_date"),
+            return LinkHeuristicResult(
+                name="virustotal",
+                flags=flags,
+                reasons=reasons,
+                meta={
+                    "status": vt.status,
+                    "resource": vt.resource,
+                    "stats": stats.__dict__,
+                    "last_analysis_date": vt.last_analysis_date,
+                    "first_submission_date": vt.first_submission_date,
                 },
-            }
+            )
 
         except Exception as e:
-            return {
-                "flags": True,
-                "reason": ["vt_exception"],
-                "meta": {
-                    "status": "exception",
-                    "error": str(e),
+            return LinkHeuristicResult(
+                name="virustotal",
+                flags=True,
+                reasons=["vt_failed"],
+                meta={"error": str(e)},
+            )
+
+    async def resolve_redirect_chain(self, parsed) -> LinkHeuristicResult:
+        if not self.redirect_lookup:                          
+            return LinkHeuristicResult(
+                name="redirect_chain",
+                flags=False,
+                reasons=["missing_redirect_service"],
+                meta={},
+            )
+
+        url = parsed.normalized
+
+        try:
+            chain_result = await self.redirect_lookup(url)
+
+            if chain_result.redirected and len(chain_result.chain) == 0:
+                return LinkHeuristicResult(
+                    name="redirect_chain",
+                    flags=True,
+                    reasons=["excessive_redirects"],
+                    meta={
+                        "original_url": url,
+                        "redirect_count": chain_result.redirect_count,
+                    },
+                )
+
+            if len(chain_result.chain) == 0:
+                return LinkHeuristicResult(
+                    name="redirect_chain",
+                    flags=True,
+                    reasons=["redirect_resolution_failed"],
+                    meta={"original_url": url},
+                )
+
+            
+            reasons = []
+            redirect_count = len(chain_result.chain) - 1
+            redirected = redirect_count > 0
+
+
+            return LinkHeuristicResult(
+                name="redirect_chain",
+                flags=redirected,
+                reasons=reasons,
+                meta={
+                    "original_url": url,
+                    "redirect_chain": chain_result.chain,
+                    "status_codes": chain_result.status_codes,
+                    "final_url": chain_result.final_url,
+                    "final_status": chain_result.final_status,
+                    "redirect_count": redirect_count,
+                    "redirected": redirected,
                 },
-            }
+            )
+
+        except Exception as exc:
+            return LinkHeuristicResult(
+                name="redirect_chain",
+                flags=True,
+                reasons=["redirect_resolution_failed"],
+                meta={"original_url": url, "error": str(exc)},
+            )
 
     async def _analyze_single_url(self, url: str) -> dict:
         try:
             parsed = parse_url(url)
 
-            # --- URL-based heuristics ---
             heuristics = {
-                "ip_based": self.is_ip_url(parsed),
-                "suspicious_tld": self.has_suspicious_tld(parsed),
+                "ip_based":             self.is_ip_url(parsed),
+                "suspicious_tld":       self.has_suspicious_tld(parsed),
                 "excessive_subdomains": self.too_many_subdomains(parsed),
-                "shortened_url": self.is_shortened_url(parsed),
-                "numeric_domain": self.is_numeric_domain(parsed),
-                "excessive_path": self.excessive_path_depth(parsed),
-                "abusable_platform": self.uses_abusable_platform(parsed),
+                "shortened_url":        self.is_shortened_url(parsed),
+                "numeric_domain":       self.is_numeric_domain(parsed),
+                "excessive_path":       self.excessive_path_depth(parsed),
+                "abusable_platform":    self.uses_abusable_platform(parsed),
+                "domain_entropy":       self.domain_entropy(parsed),
             }
 
-            # --- Entropy ---
-            entropy = self.domain_entropy(parsed)
-
-            enrichment_results = {}
-
-            tasks = {}
             enrich = self.enrich or []
-
             if "all" in enrich:
                 enrich = ["virustotal", "domain_age", "certificate", "redirects"]
 
+            tasks = {}
             if "virustotal" in enrich:
-                tasks["virustotal"] = self.scan_with_virustotal(parsed)
-
+                tasks["virustotal"] = self.scan_virustotal(parsed)
             if "domain_age" in enrich:
                 tasks["domain_age"] = self.domain_age(parsed)
-
             if "certificate" in enrich:
                 tasks["certificate"] = self.analyze_certificate(parsed)
-
             if "redirects" in enrich:
-                tasks["redirect_chain"] = self.resolve_redirect_chain(
-                    parsed, self._session
-                )
+                tasks["redirect_chain"] = self.resolve_redirect_chain(parsed)
 
+            enrichment: dict = {}
             if tasks:
-                results_data = await asyncio.gather(
-                    *tasks.values(), return_exceptions=True
-                )
-                for name, data in zip(tasks.keys(), results_data):
+                results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+                for name, data in zip(tasks.keys(), results):
                     if isinstance(data, Exception):
-                        data = {
-                            "flags": True,
-                            "reason": [f"{name}_failed"],
-                            "meta": {"error": str(data)},
-                        }
-                    enrichment_results[name] = data
+                        data = LinkHeuristicResult(
+                            name=name,
+                            flags=True,
+                            reasons=[f"{name}_failed"],
+                            meta={"error": str(data)},
+                        )
+                    enrichment[name] = data
 
-            # --- Aggregate Flags ---
-            aggregated_flags = set()
-            all_results = (
-                list(heuristics.values())
-                + [entropy]
-                + list(enrichment_results.values())
+            # Aggregate flags across all LinkHeuristicResult objects
+            all_results = list(heuristics.values()) + list(enrichment.values())
+            aggregated_flags = sorted(
+                {reason for r in all_results if r.flags for reason in r.reasons}
             )
-            for r in all_results:
-                if isinstance(r, dict) and r.get("flags"):
-                    aggregated_flags.update(r.get("reason", []))
 
-            # --- Final Result ---
-            final_result = {
+            return {
                 "url": url,
-                "heuristics": heuristics,
-                "entropy": entropy,
+                "heuristics": {k: v.__dict__ for k, v in heuristics.items()},
+                "enrichment": {k: v.__dict__ for k, v in enrichment.items()},
+                "aggregated_flags": aggregated_flags,
             }
-            final_result.update(enrichment_results)
-            final_result["aggregated_flags"] = sorted(aggregated_flags)
-
-            return final_result
 
         except Exception as e:
             return {
                 "url": url,
                 "flags": True,
-                "reason": ["unhandled_exception"],
+                "reasons": ["unhandled_exception"],
                 "meta": {
                     "error": f"{type(e).__name__}: {str(e)}",
                     "traceback": traceback.format_exc(),
                 },
             }
+
 
     async def run_link_heuristics(self, urls: list[str]) -> list[dict]:
         tasks = [self._analyze_single_url(url) for url in urls]
