@@ -24,7 +24,6 @@ from phishsage.services.virustotal import VirusTotalService
 from phishsage.services.whois import WhoisService
 from phishsage.services.redirect import RedirectService
 from phishsage.services.cert_checker import SSLService
-from phishsage.outputs.printer import links as printer
 
 
 def _build_config() -> LinkHeuristicConfig:
@@ -77,11 +76,8 @@ async def handle_links(args, mail):
     links = extract_links(html_body)
 
     if not links:
-        msg = {"error": "No URLs found in the email"}
-        if args.json:
-            return msg
-        printer.print_warning("No URLs found in the email.")
-        return msg
+        return {"error": "No URLs found in the email"}
+        
 
     web_urls = [u for u in links if u.lower().startswith(("http://", "https://"))]
     non_web_urls = [
@@ -97,8 +93,7 @@ async def handle_links(args, mail):
             "web": web_urls,
             "non_web": non_web_urls,
         }
-        if not args.json:
-            printer.print_url_extraction(links, non_web_urls)
+        
 
     # --- VirusTotal Scan ---
     if args.vt_scan:
@@ -121,8 +116,6 @@ async def handle_links(args, mail):
             }
 
         json_output.setdefault("analysis", {})["virustotal"] = vt_dict
-        if not args.json:
-            printer.print_vt_scan_links(web_urls, vt_results)
 
     # --- Redirect Analysis ---
     if args.check_redirects:
@@ -175,8 +168,7 @@ async def handle_links(args, mail):
             )
 
         json_output.setdefault("analysis", {})["redirects"] = redirect_results
-        if not args.json:
-            printer.print_redirect_chain(redirect_results)
+        
 
     # --- Phishing Heuristics ---
     if args.heuristics:
@@ -198,7 +190,5 @@ async def handle_links(args, mail):
                 await session.close()
 
         json_output.setdefault("analysis", {})["heuristics"] = heuristics
-        if not args.json:
-            printer.print_link_heuristics(heuristics)
 
     return json_output
