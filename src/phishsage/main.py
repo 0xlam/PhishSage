@@ -3,6 +3,7 @@ import json
 import mailparser
 from datetime import datetime
 from phishsage.utils import get_parser
+from phishsage.outputs.writer import OutputWriter
 from phishsage.parsers import extract_mail_headers
 
 from phishsage.outputs.printer import (
@@ -88,6 +89,9 @@ def main():
             parser.error("--enrich requires --heuristics")
         if args.enrich == []:
             args.enrich = ["all"]
+    
+    if args.output and not args.json:
+        parser.error("--output requires --json flag")
 
     try:
         with open(args.file, "rb") as f:
@@ -105,19 +109,13 @@ def main():
     mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
     output = asyncio.run(run(args, parsed_mail, mail_headers))
 
-    if args.json:
-        if output:
-            print(
-                json.dumps(
-                    output,
-                    indent=2,
-                    sort_keys=False,
-                    ensure_ascii=False,
-                    default=default_serializer,
-                )
-            )
+    if args.json and output:
+        writer = OutputWriter(args.output)
+        writer.save(output, default_serializer=default_serializer)
+    
     else:
-        print_rich_output(args, output)
+        if output:
+            print_rich_output(args, output)
 
 
 async def run(args, mail, mail_headers):
