@@ -19,3 +19,12 @@ def print_error(message: str) -> None:
         border_style="red",
         title="[red]Error[/red]",
     ))
+
+def print_success(message: str) -> None:
+    console.print(
+        Panel(
+            Text(message, style="green"),
+            border_style="green",
+            title="[green]Success[/green]",
+        )
+    )
