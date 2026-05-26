@@ -1,6 +1,6 @@
 import asyncio
-from typing import Dict, Any, Optional
 import hashlib
+from typing import Dict, Any, Optional
 
 
 class AttachmentHeuristics:
@@ -15,14 +15,6 @@ class AttachmentHeuristics:
     }
 
     def __init__(self, processor, vt_client=None, yara_engine=None, yara_verbose=False):
-        """
-        Attachments heuristics engine.
-
-        :param processor: AttachmentProcessor instance
-        :param vt_client: Function to query VirusTotal
-        :param yara_engine: YARA engine instance
-        :param yara_verbose: Show detailed YARA matches
-        """
         self.processor = processor
         self.vt_client = vt_client
         self.yara_engine = yara_engine
@@ -30,85 +22,134 @@ class AttachmentHeuristics:
 
         self.attachments = None
 
-    def _ensure_attachments(self):
+    # -------------------------
+    # attachment loading
+    # -------------------------
+
+    def _ensure_attachments(self) -> Dict[str, Any]:
         if self.attachments is None:
-            self.attachments = self.processor.force_parse()
+            self.attachments = self.processor.force_parse() or {}
         return self.attachments
 
-    # -----------------------------
+    # -------------------------
+    # response helper
+    # -------------------------
+
+    def _wrap(self, items: Dict[str, Any], errors=None) -> Dict[str, Any]:
+        errors = errors or []
+
+        return {
+            "attachments": items,
+            "summary": {
+                "total": len(items),
+                "scanned": len(items),
+                "errors": errors,
+            },
+        }
+
+    # -------------------------
     # VirusTotal Scan
-    # -----------------------------
+    # -------------------------
 
-    async def vt_scan(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Scan attachments on VirusTotal, return normalized results
-        """
+    async def vt_scan(self) -> dict:
         attachments = self._ensure_attachments()
+
         if not attachments:
-            return {}
-
-        fnames = []
-        sha256_list = []
-        tasks = []
-
-        for fname, meta in attachments.items():
-            file_bytes = meta["file_bytes"]
-            sha256 = hashlib.sha256(file_bytes).hexdigest()
-            fnames.append(fname)
-            sha256_list.append(sha256)
-            tasks.append(self.vt_client(file_hash=sha256))
-
-        vt_results = await asyncio.gather(*tasks)
+            return self._wrap({}, errors=["no_attachments"])
 
         results = {}
-        for fname, sha256, vt_result in zip(fnames, sha256_list, vt_results):
+        errors = []
 
-            meta_stats = vt_result.get("meta") or {}
-            stats = meta_stats.copy() if vt_result.get("status") == "ok" else {}
-            stats.pop("resource", None)
+        
+        if not self.vt_client:
+            for fname, meta in attachments.items():
+                results[fname] = self._vt_unavailable(meta)
+            return self._wrap(results, errors=["missing_vt_service"])
 
-            # Remove noisy fields from 'last_analysis_stats'
-            if "last_analysis_stats" in stats:
-                stats["last_analysis_stats"] = {
-                    k: v
-                    for k, v in stats["last_analysis_stats"].items()
+        fnames = list(attachments.keys())
+        tasks = []
+
+        for fname in fnames:
+            meta = attachments[fname]
+            sha256 = hashlib.sha256(meta["file_bytes"]).hexdigest()
+            tasks.append(self.vt_client(sha256))
+
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for fname, vt in zip(fnames, responses):
+            meta = attachments[fname]
+            sha256 = hashlib.sha256(meta["file_bytes"]).hexdigest()
+
+            if isinstance(vt, Exception):
+                results[fname] = {
+                    "sha256": sha256,
+                    "virustotal": {
+                        "status": "exception",
+                        "reason": "vt_exception",
+                        "stats": {},
+                        "error": str(vt),
+                    },
+                }
+                continue
+
+            stats = {}
+            if vt.status == "ok" and vt.stats:
+                raw = vt.stats.__dict__
+                stats = {
+                    k: v for k, v in raw.items()
                     if k not in self.VT_ZERO_FIELDS
                 }
 
             results[fname] = {
                 "sha256": sha256,
                 "virustotal": {
-                    "status": vt_result.get("status"),
-                    "reason": vt_result.get("reason"),
-                    "stats": stats,
+                    "status": vt.status,
+                    "reason": getattr(vt, "error", None),
+                    "stats": {
+                        "last_analysis_stats": stats,
+                        "last_analysis_date": getattr(vt, "last_analysis_date", None),
+                        "first_submission_date": getattr(vt, "first_submission_date", None),
+                    },
                 },
             }
 
-        return results
+        return self._wrap(results)
 
-    # -----------------------------
+    def _vt_unavailable(self, meta):
+        return {
+            "sha256": hashlib.sha256(meta["file_bytes"]).hexdigest(),
+            "virustotal": {
+                "status": "unavailable",
+                "reason": "missing_vt_service",
+                "stats": {},
+            },
+        }
+
+    # -------------------------
     # YARA Scan
-    # -----------------------------
+    # -------------------------
 
     def yara_scan(self, verbose: Optional[bool] = None) -> dict:
-
         verbose = self.yara_verbose if verbose is None else verbose
+        attachments = self._ensure_attachments()
 
+        if not attachments:
+            return self._wrap({}, errors=["no_attachments"])
+
+        results = {}
+        errors = []
+
+        
         if self.yara_engine is None:
-            return {
-                fname: {
+            for fname in attachments:
+                results[fname] = {
                     "flag": False,
                     "matches": [],
                     "error": "YARA engine not provided",
                 }
-                for fname in getattr(self, "attachments", {}).keys()
-            }
-
-        attachments = self._ensure_attachments()
-        results = {}
+            return self._wrap(results, errors=["missing_yara_engine"])
 
         for fname, meta in attachments.items():
-
             file_bytes = meta.get("file_bytes")
 
             if not file_bytes:
@@ -122,8 +163,7 @@ class AttachmentHeuristics:
             try:
                 matches = self.yara_engine.scan(data=file_bytes)
 
-                formatted_matches = []
-
+                formatted = []
                 for match in matches:
                     matched_flag = bool(match.strings)
 
@@ -136,38 +176,35 @@ class AttachmentHeuristics:
 
                     if verbose and matched_flag:
                         strings = []
-
                         for s in match.strings:
                             for inst in s.instances:
-                                strings.append(
-                                    {
-                                        "name": s.identifier,
-                                        "offset": hex(inst.offset),
-                                        "data": inst.matched_data.hex(),
-                                    }
-                                )
+                                strings.append({
+                                    "name": s.identifier,
+                                    "offset": hex(inst.offset),
+                                    "data": inst.matched_data.hex(),
+                                })
 
                         match_dict["strings"] = strings
 
-                    formatted_matches.append(match_dict)
+                    formatted.append(match_dict)
 
                 results[fname] = {
-                    "flag": any(m["flag"] for m in formatted_matches),
-                    "matches": formatted_matches,
+                    "flag": any(m["flag"] for m in formatted),
+                    "matches": formatted,
                 }
 
             except RuntimeError as e:
                 results[fname] = {
                     "flag": False,
                     "matches": [],
-                    "error": f"YARA runtime error: {str(e)}",
+                    "error": f"YARA runtime error: {e}",
                 }
 
             except Exception as e:
                 results[fname] = {
                     "flag": False,
                     "matches": [],
-                    "error": f"Unexpected YARA error: {str(e)}",
+                    "error": f"Unexpected YARA error: {e}",
                 }
 
-        return results
+        return self._wrap(results)
