@@ -9,6 +9,11 @@ def get_parser():
     common.add_argument(
         "-f", "--file", required=True, help="Email file to analyze (.eml)"
     )
+    common.add_argument(
+        "-o", "--output",
+        metavar="FILE",
+        help="Save JSON results to file (use with --json)"
+    )
 
     # ---- SUBCOMMANDS ----
     subparsers = parser.add_subparsers(dest="mode", required=True)
