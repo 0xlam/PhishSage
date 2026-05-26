@@ -51,9 +51,5 @@ async def handle_attachments(args, mail):
         if args.yara:
             results = heur.yara_scan()
             json_output["yara_scan"] = results or {}
-            if not args.json:
-                printer.print_yara_scan_attachments(
-                    results, verbose=args.yara_verbose
-                )
-
+            
     return json_output
