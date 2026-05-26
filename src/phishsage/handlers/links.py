@@ -86,9 +86,10 @@ async def handle_links(args, mail):
 
     json_output = {}
 
+
     # --- URL Extraction ---
     if args.extract:
-        json_output["urls"] = {
+        json_output.setdefault("analysis", {})["urls"] = {
             "total": len(links),
             "web": web_urls,
             "non_web": non_web_urls,

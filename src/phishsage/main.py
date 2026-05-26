@@ -40,11 +40,11 @@ def print_rich_output(args, output):
         return
 
     if args.mode == "links":
-        # URL extraction
-        if args.extract and "urls" in output:
-            print_url_extraction(output["urls"])
-
         analysis = output.get("analysis", {})
+
+        # URL extraction
+        if args.extract and "urls" in analysis:
+            print_url_extraction(analysis["urls"])
 
         # VirusTotal
         if args.vt_scan and "virustotal" in analysis:

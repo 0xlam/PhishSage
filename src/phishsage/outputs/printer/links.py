@@ -34,7 +34,11 @@ def print_warning(message: str) -> None:
         border_style="yellow",
     ))
 
-def print_url_extraction(links, non_web):
+
+def print_url_extraction(url_data):
+    links = url_data.get("web", [])
+    non_web = url_data.get("non_web", [])
+
     table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
     table.add_column("icon", width=2)
     table.add_column("url", style="cyan")
@@ -43,37 +47,43 @@ def print_url_extraction(links, non_web):
         table.add_row("•", url)
 
     console.print()
-    console.print(Panel(
-        table,
-        title="[bold]URL extraction[/bold]",
-        subtitle=f"{len(links)} web · {len(non_web)} skipped",
-        border_style="dim",
-    ))
+    console.print(
+        Panel(
+            table,
+            title="[bold]URL extraction[/bold]",
+            subtitle=f"{len(links)} web · {len(non_web)} non-web",
+            border_style="dim",
+        )
+    )
 
     if non_web:
         skipped = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
         skipped.add_column("icon", width=2)
         skipped.add_column("url", style="dim")
+
         for url in non_web:
             skipped.add_row("•", url)
-        console.print(Panel(
-            skipped,
-            title="[dim]Non-web URLs skipped[/dim]",
-            border_style="dim",
-        ))
+
+        console.print(
+            Panel(
+                skipped,
+                title="[dim]Non-web URLs[/dim]",
+                border_style="dim",
+            )
+        )
 
 
-def print_vt_scan_links(web_urls, vt_results):
+def print_vt_scan_links(vt_results):
     console.print()
     console.rule("[bold]VirusTotal scan — links[/bold]")
 
     total_flagged = 0
     total_errors = 0
 
-    for url, result in zip(web_urls, vt_results):
-        flags = result.flags
-        reasons = result.reasons
-        meta = result.meta
+    for url, result in vt_results.items():
+        flags = result.get("flags")
+        reasons = result.get("reasons")
+        meta = result.get("meta", {})
         status = meta.get("status", "unknown")
 
         if flags:
@@ -111,18 +121,19 @@ def print_vt_scan_links(web_urls, vt_results):
             else:
                 body.add_row("Stats", Text("unavailable", style="dim"))
 
-        console.print(Panel(
-            body,
-            title=header,
-            border_style="red" if flags else "green",
-        ))
+        console.print(
+            Panel(
+                body,
+                title=header,
+                border_style="red" if flags else "green",
+            )
+        )
 
     console.print(
-        f"[dim]Summary:[/dim] {len(web_urls)} scanned · "
+        f"[dim]Summary:[/dim] {len(vt_results)} scanned · "
         f"[red]{total_flagged} flagged[/red] · "
         f"[yellow]{total_errors} errors[/yellow]"
     )
-
 
 def print_redirect_chain(results):
     console.print()
