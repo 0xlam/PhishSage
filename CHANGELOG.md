@@ -64,3 +64,20 @@
 ### Added
 - Optional dependency groups: `[attachments]`, `[links]`, `[all]`.
 - Import guards with install hints for missing optional dependencies.
+
+
+## [2.2.0] - 2026-05-26
+
+### Added
+- Rich CLI output for links, headers, and attachments
+- Service layer for VirusTotal, WHOIS, redirects, and SSL certificates
+- Typed result models for all analysis outputs
+- Heuristic config schemas for link and header analysis
+
+### Changed
+- Migrated to dependency injection for external services
+- Normalized attachment scan responses
+- Centralized CLI output handling
+
+### Fixed
+- URL parsing for IPv4 and IPv6 addresses
