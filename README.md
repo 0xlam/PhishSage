@@ -146,17 +146,15 @@ phishsage headers -h
 **Options:**
 
 ```
-usage: phishsage headers [-h] -f FILE [--heuristics]
-                         [--enrich [{mx,spamhaus,domain_age,all} ...]]
-                         [--json]
+usage: phishsage headers [-h] -f FILE [-o FILE] [--heuristics] [--enrich [{mx,spamhaus,domain_age,all} ...]] [--json]
 
 options:
   -h, --help            show this help message and exit
   -f, --file FILE       Email file to analyze (.eml)
+  -o, --output FILE     Save JSON results to file (use with --json)
   --heuristics          Analyze headers for suspicious patterns and anomalies
   --enrich [{mx,spamhaus,domain_age,all} ...]
-                        Add threat-intel enrichment to header analysis (mx,
-                        spamhaus, domain_age). Requires --heuristics.
+                        Add threat-intel enrichment to header analysis (mx, spamhaus, domain_age). Requires --heuristics.
   --json                Output full details in JSON format
 ```
 
@@ -171,23 +169,20 @@ phishsage attachments -h
 **Options:**
 
 ```
-usage: phishsage attachments [-h] -f FILE [--list] [--extract DIR] [--hash]
-                             [--vt-scan] [--yara PATH [PATH ...]]
-                             [--yara-verbose] [--json]
+usage: phishsage attachments [-h] -f FILE [-o FILE] [--list] [--extract DIR] [--hash] [--vt-scan] [--yara PATH [PATH ...]] [--yara-verbose] [--json]
 
 options:
   -h, --help            show this help message and exit
   -f, --file FILE       Email file to analyze (.eml)
+  -o, --output FILE     Save JSON results to file (use with --json)
   --list                List attachments only
   --extract DIR         Extract attachments to specified directory
   --hash                Compute hashes (MD5, SHA1, SHA256) for each attachment
   --vt-scan             Check attachments against VirusTotal by SHA256
   --yara PATH [PATH ...]
-                        Scan attachments with YARA rules. Paths can be files
-                        or directories; directories are scanned recursively
-                        for .yar/.yara files.
-  --yara-verbose        Show detailed string matches and offsets when YARA
-                        rules hit
+                        Scan attachments with YARA rules. Paths can be files or directories; directories are scanned recursively for .yar/.yara
+                        files.
+  --yara-verbose        Show detailed string matches and offsets when YARA rules hit
   --json                Output full details in JSON format
 ```
 
@@ -202,22 +197,19 @@ phishsage links -h
 **Options:**
 
 ```
-usage: phishsage links [-h] -f FILE [--extract] [--vt-scan]
-                       [--check-redirects] [--heuristics]
-                       [--enrich [{all,domain_age,certificate,virustotal,redirects} ...]]
-                       [--json]
+usage: phishsage links [-h] -f FILE [-o FILE] [--extract] [--vt-scan] [--check-redirects] [--heuristics]
+                       [--enrich [{all,domain_age,certificate,virustotal,redirects} ...]] [--json]
 
 options:
   -h, --help            show this help message and exit
   -f, --file FILE       Email file to analyze (.eml)
+  -o, --output FILE     Save JSON results to file (use with --json)
   --extract             Extract URLs from the email body
   --vt-scan             Query VirusTotal for URL reputation
   --check-redirects     Follow HTTP redirects and show chain
-  --heuristics          Run phishing detection heuristics (use --enrich to add
-                        extra data)
+  --heuristics          Run phishing detection heuristics (use --enrich to add extra data)
   --enrich [{all,domain_age,certificate,virustotal,redirects} ...]
-                        Add extra analysis to heuristics (requires
-                        --heuristics)
+                        Add extra analysis to heuristics (requires --heuristics)
   --json                Output full details in JSON format
 ```
 
