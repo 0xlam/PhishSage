@@ -28,3 +28,6 @@ def print_success(message: str) -> None:
             title="[green]Success[/green]",
         )
     )
+
+def print_file_header(filepath: str) -> None:
+    console.print(f"\n[bold cyan]── {filepath} ──[/bold cyan]")

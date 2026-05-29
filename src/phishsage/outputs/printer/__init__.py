@@ -1,4 +1,4 @@
-from .shared import print_warning, print_error
+from .shared import print_warning, print_error, print_file_header
 from .headers import print_header_heuristics
 from .attachments import (
     print_attachment_listing,
