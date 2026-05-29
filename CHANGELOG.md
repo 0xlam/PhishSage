@@ -91,3 +91,10 @@
 
 ### Fixed
 - Fixed import issues caused by eager imports in handlers/__init__.py
+
+
+## [2.3.1] - 2026-05-30
+
+### Fixed
+- VirusTotal rich output showing `unknown`/`unavailable` due to printer
+  reading from a non-existent `meta` wrapper instead of top-level keys
