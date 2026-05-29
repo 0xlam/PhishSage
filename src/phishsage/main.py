@@ -92,7 +92,7 @@ def main():
             parser.error("--enrich requires --heuristics")
         if args.enrich == []:
             args.enrich = ["all"]
-    
+
     if args.output and not args.json:
         parser.error("--output requires --json flag")
 
@@ -100,7 +100,7 @@ def main():
     dupes = [f for f in args.file if f in seen or seen.add(f)]
     if dupes:
         print_warning(f"Duplicate files removed: {dupes}")
-    args.file = list(dict.fromkeys(args.file))  
+    args.file = list(dict.fromkeys(args.file))
 
     results = {}
 
@@ -125,7 +125,7 @@ def main():
     if args.json:
         writer = OutputWriter(args.output, default_serializer=default_serializer)
         writer.save(results)
-    
+
     else:
         for filepath, output in results.items():
             print_rich_output(args, filepath, output)
@@ -133,15 +133,15 @@ def main():
 
 async def run(args, mail, mail_headers):
     if args.mode == "attachments":
-        from phishsage.handlers import handle_attachments
+        from phishsage.handlers.attachments import handle_attachments
 
         return await handle_attachments(args, mail)
     elif args.mode == "links":
-        from phishsage.handlers import handle_links
+        from phishsage.handlers.links import handle_links
 
         return await handle_links(args, mail)
     elif args.mode == "headers":
-        from phishsage.handlers import handle_headers
+        from phishsage.handlers.headers import handle_headers
 
         return await handle_headers(args, mail_headers)
     else:
