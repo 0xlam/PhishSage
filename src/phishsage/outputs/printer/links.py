@@ -72,21 +72,21 @@ def print_url_extraction(url_data):
             )
         )
 
-
 def print_vt_scan_links(vt_results):
     console.print()
     console.rule("[bold]VirusTotal scan — links[/bold]")
-
     total_flagged = 0
     total_errors = 0
 
     for url, result in vt_results.items():
-        flags = result.get("flags")
-        reasons = result.get("reasons")
-        meta = result.get("meta", {})
-        status = meta.get("status", "unknown")
+        status = result.get("status", "unknown")
+        stats = result.get("stats")
+        last_analysis_date = result.get("last_analysis_date")
+        first_submission_date = result.get("first_submission_date")
 
-        if flags:
+        is_flagged = isinstance(stats, dict) and stats.get("malicious", 0) > 0
+
+        if is_flagged:
             total_flagged += 1
             verdict = Text("FLAGGED", style="bold red")
         else:
@@ -103,21 +103,17 @@ def print_vt_scan_links(vt_results):
 
         body.add_row("Status", status)
 
-        if reasons:
-            body.add_row("Reasons", Text(", ".join(reasons), style="red"))
-
-        stats = meta.get("stats")
         if stats and isinstance(stats, dict):
             body.add_row("Malicious",  Text(str(stats.get("malicious", 0)),  style="red"))
             body.add_row("Suspicious", Text(str(stats.get("suspicious", 0)), style="yellow"))
             body.add_row("Undetected", str(stats.get("undetected", 0)))
             body.add_row("Harmless",   Text(str(stats.get("harmless", 0)),   style="green"))
-            body.add_row("Last scan",  _format_date(meta.get("last_analysis_date")))
-            body.add_row("First seen", _format_date(meta.get("first_submission_date")))
+            body.add_row("Last scan",  _format_date(last_analysis_date))
+            body.add_row("First seen", _format_date(first_submission_date))
         else:
-            if status == "exception":
+            if status == "error":
                 total_errors += 1
-                body.add_row("Error", Text(meta.get("error", "unknown"), style="red"))
+                body.add_row("Error", Text(result.get("error", "unknown"), style="red"))
             else:
                 body.add_row("Stats", Text("unavailable", style="dim"))
 
@@ -125,7 +121,7 @@ def print_vt_scan_links(vt_results):
             Panel(
                 body,
                 title=header,
-                border_style="red" if flags else "green",
+                border_style="red" if is_flagged else "green",
             )
         )
 
