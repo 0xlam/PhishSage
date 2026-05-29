@@ -7,10 +7,11 @@ console = Console()
 
 class OutputWriter:
 
-    def __init__(self, output_path: str = None):
+    def __init__(self, output_path: str = None, default_serializer=None):
         self.output_path = output_path
+        self.default_serializer = default_serializer
 
-    def save(self, data: dict, default_serializer=None) -> bool:
+    def save(self, data: dict) -> bool:
 
         if self.output_path:
             return self._save_to_file(data)
@@ -21,7 +22,7 @@ class OutputWriter:
                     indent=2,
                     sort_keys=False,
                     ensure_ascii=False,
-                    default=default_serializer,
+                    default=self.default_serializer,
                 )
             )
             return True
@@ -33,11 +34,11 @@ class OutputWriter:
                 exist_ok=True
             )
 
-            with open(self.output_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(data, ensure_ascii=False))
+            with open(self.output_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(data, indent=2, ensure_ascii=False, default=self.default_serializer) + "\n")
 
             print_success(
-                f"Results appended to: {self.output_path}"
+                f"Results saved to: {self.output_path}"
             )
             return True
 
