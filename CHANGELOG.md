@@ -81,3 +81,13 @@
 
 ### Fixed
 - URL parsing for IPv4 and IPv6 addresses
+
+
+## [2.3.0] – 2026-05-29
+
+### Added
+- Batch processing support for multiple email files via CLI (--file)
+- Output file support for JSON mode (--output)
+
+### Fixed
+- Fixed import issues caused by eager imports in handlers/__init__.py
