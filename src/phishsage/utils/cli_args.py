@@ -7,12 +7,18 @@ def get_parser():
     # ---- COMMON FLAGS (shared by all subcommands) ----
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
-        "-f", "--file", required=True, help="Email file to analyze (.eml)"
+        "-f",
+        "--file",
+        required=True,
+        nargs="+",
+        metavar="FILE",
+        help="Email file(s) to analyze (.eml). Pass multiple for batch mode.",
     )
     common.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         metavar="FILE",
-        help="Save JSON results to file (use with --json)"
+        help="Save JSON results to file (use with --json)",
     )
 
     # ---- SUBCOMMANDS ----
