@@ -9,6 +9,7 @@ from phishsage.parsers import extract_mail_headers
 from phishsage.outputs.printer import (
     print_warning,
     print_error,
+    print_file_header,
     print_url_extraction,
     print_vt_scan_links,
     print_redirect_chain,
@@ -28,9 +29,11 @@ def default_serializer(obj):
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
-def print_rich_output(args, output):
+def print_rich_output(args, filepath, output):
     if not output:
         return
+
+    print_file_header(filepath)
 
     if "error" in output:
         print_warning(output["error"])
@@ -93,29 +96,39 @@ def main():
     if args.output and not args.json:
         parser.error("--output requires --json flag")
 
-    try:
-        with open(args.file, "rb") as f:
-            raw_mail_bytes = f.read()
-    except Exception as e:
-        print_error(f"Failed to read email file: {e}")
-        return
+    seen = set()
+    dupes = [f for f in args.file if f in seen or seen.add(f)]
+    if dupes:
+        print_warning(f"Duplicate files removed: {dupes}")
+    args.file = list(dict.fromkeys(args.file))  
 
-    try:
-        parsed_mail = mailparser.parse_from_bytes(raw_mail_bytes)
-    except Exception as e:
-        print_error(f"Failed to parse email: {e}")
-        return
+    results = {}
 
-    mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
-    output = asyncio.run(run(args, parsed_mail, mail_headers))
+    for filepath in args.file:
+        try:
+            with open(filepath, "rb") as f:
+                raw_mail_bytes = f.read()
+        except Exception as e:
+            results[filepath] = {"error": f"Failed to read: {e}"}
+            continue
 
-    if args.json and output:
-        writer = OutputWriter(args.output)
-        writer.save(output, default_serializer=default_serializer)
+        try:
+            parsed_mail = mailparser.parse_from_bytes(raw_mail_bytes)
+        except Exception as e:
+            results[filepath] = {"error": f"Failed to parse: {e}"}
+            continue
+
+        mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
+        output = asyncio.run(run(args, parsed_mail, mail_headers))
+        results[filepath] = output
+
+    if args.json:
+        writer = OutputWriter(args.output, default_serializer=default_serializer)
+        writer.save(results)
     
     else:
-        if output:
-            print_rich_output(args, output)
+        for filepath, output in results.items():
+            print_rich_output(args, filepath, output)
 
 
 async def run(args, mail, mail_headers):
