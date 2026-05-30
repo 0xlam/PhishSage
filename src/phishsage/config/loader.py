@@ -61,3 +61,14 @@ CERT_RECENT_ISSUE_DAYS_THRESHOLD = HEURISTICS.get(
 )
 CERT_EXPIRY_SOON_DAYS_THRESHOLD = HEURISTICS.get("cert_expiry_soon_days_threshold", 10)
 SSL_DEFAULT_PORT = HEURISTICS.get("ssl_default_port", 443)
+
+# -------------------------------
+#  CACHE CONFIG
+# -------------------------------
+CACHE = raw.get("cache", {})
+
+CACHE_DIR      = Path(os.path.expanduser(CACHE.get("dir", "~/.cache/phishsage")))
+CACHE_TTL_VT       = CACHE.get("ttl_vt",       86400)
+CACHE_TTL_WHOIS    = CACHE.get("ttl_whois",    604800)
+CACHE_TTL_REDIRECT = CACHE.get("ttl_redirect", 21600)
+CACHE_TTL_SSL      = CACHE.get("ttl_ssl",      43200)

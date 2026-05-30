@@ -105,3 +105,10 @@ cert_expiry_soon_days_threshold = 10
 # SSL default port for certificate retrieval
 ssl_default_port = 443
 
+[cache]
+dir = "~/.cache/phishsage"
+ttl_vt       = 86400    # 24h
+ttl_whois    = 604800   # 7d
+ttl_redirect = 21600    # 6h
+ttl_ssl      = 43200    # 12h
+
