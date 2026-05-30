@@ -21,6 +21,18 @@ def get_parser():
         help="Save JSON results to file (use with --json)",
     )
 
+    common.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable caching for this run",
+    )
+
+    common.add_argument(
+        "--cache-dir",
+        metavar="DIR",
+        help="Custom cache directory (default: ~/.cache/phishsage)",
+    )
+
     # ---- SUBCOMMANDS ----
     subparsers = parser.add_subparsers(dest="mode", required=True)
 
