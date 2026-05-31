@@ -1,256 +1,183 @@
 # PhishSage
 
-PhishSage is a lightweight phishing-analysis toolkit that parses raw emails, inspects headers, analyzes links and domains with multi-layer heuristics, and outputs structured JSON findings for fast, automated investigation
+**CLI toolkit for email phishing analysis**. Parses raw .eml files, runs heuristic checks against headers, links, and attachments, queries external services (VirusTotal, WHOIS, Spamhaus, DNS) for additional context, and outputs structured JSON or Rich terminal output.
 
-<!-- Badges go here -->
+[![PyPI](https://img.shields.io/pypi/v/phishsage)](https://pypi.org/project/phishsage/)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://pypi.org/project/phishsage/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Status: Active](https://img.shields.io/badge/status-active-brightgreen)]()
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)]()
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
-[![Status: Active](https://img.shields.io/badge/Project%20Status-Active-brightgreen.svg)]()
+---
 
+## What it does.
 
-## 1. Core functionality
+PhishSage covers three analysis surfaces, each a CLI subcommand:
 
-PhishSage is intentionally minimal and concentrates on these essential capabilities:
+**`headers`** — SPF/DKIM/DMARC extraction and alignment checks, Reply-To/Return-Path anomalies, Message-ID domain validation, free-provider detection, timestamp drift between `Date` and `Received`, optional MX record lookup, Spamhaus DBL query, and WHOIS domain-age flagging.
 
-* **Header analysis**
+**`links`** — URL extraction from body and headers, raw-IP URL detection, suspicious/uncommon TLD flagging, subdomain depth and entropy scoring (detects randomly generated domains), shortened-URL detection, free hosting platform detection, SSL/TLS certificate inspection, WHOIS domain age, VirusTotal URL lookup, redirect-chain tracing, and path-depth analysis.
 
-  * Extracts normalized sender-related headers (From, Reply-To, Return-Path, Message-ID)
-  * Parses SPF, DKIM, and DMARC results from Authentication-Results
-  * Performs alignment checks across From, Reply-To, and Return-Path
-  * Validates Message-ID domain consistency
-  * Detects use of free email providers in Reply-To and Return-Path headers
-  * Checks timestamp sanity by comparing the Date header with the first Received hop
-  * Looks up WHOIS domain age and flags newly registered or soon-to-expire domains
-  * Validates MX records for sender-related domains
-  * Queries Spamhaus DBL for sender-related domains
-  * Aggregates all findings into structured JSON with merged alerts
+**`attachments`** — Listing with MIME type and size, safe attachment extraction, MD5/SHA1/SHA256 hashing, VirusTotal hash lookup, and YARA rule scanning with optional verbose string/offset output.
 
+Enrichment is opt-in via `--enrich` and runs concurrently. Headers support `mx`, `spamhaus`, and `domain_age`; links support `domain_age`, `certificate`, `virustotal`, and `redirects`
 
-* **Attachment processing**
+---
 
-  * List attachments with MIME and size
-  * Extract attachments safely (avoid overwrites)
-  * Compute hashes (MD5, SHA1, SHA256)
-  * Optional VirusTotal scan by SHA256
-  * Scan attachments with YARA rules (single files, multiple files, or directories; recursive and filtered for valid .yar/.yara files)
-  * Verbose mode shows matched strings with offsets and hex data
+## Installation
 
+### Base (headers + basic parsing)
 
-* **Link / URL analysis**
-
-  * Extracts URLs from email bodies or headers
-  * Detects URLs using raw IP addresses instead of domains
-  * Flags suspicious or uncommon top-level domains (TLDs)
-  * Identifies excessive or nested subdomains, ignoring trivial ones (e.g., "www")
-  * Recognizes shortened URLs (bit.ly, tinyurl.com, etc.)
-  * Calculates Shannon entropy for domain and subdomain to spot obfuscation
-  * Performs SSL/TLS certificate inspection (issuer, validity, domain match, expiration)
-  * Looks up domain age via WHOIS and flags newly registered or expiring domains
-  * VirusTotal URL lookup for threat intelligence
-  * Optional redirect-chain tracing to uncover hidden destinations
-  * Checks for numeric-only registrable domains
-  * Detects URLs using commonly abused web platforms and services
-  * Flags URLs with excessively deep paths
-
-
-## 2. Installation
-
-### Base Install
-
-Installs core functionality: header analysis and basic email parsing.
 ```bash
-# From PyPI
 pip install phishsage
+```
 
-# From GitHub
+### With extras
+
+```bash
+pip install "phishsage[attachments]"   # YARA scanning, MIME detection
+pip install "phishsage[links]"         # SSL/TLS certificate checks, VirusTotal URL lookup
+pip install "phishsage[all]"           # Everything
+```
+
+### From source
+
+```bash
 git clone https://github.com/0xlam/PhishSage.git
 cd PhishSage
-python3 -m venv venv
-
-# Linux / macOS
-source venv/bin/activate
-
-# Windows (PowerShell)
-venv\Scripts\Activate.ps1
-
-pip install -e .
+python3 -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\Activate.ps1
+pip install -e ".[all]"
 ```
 
----
+### VirusTotal API key (optional)
 
-### Optional Extras
-
-Install only what you need:
-```bash
-# Attachment analysis (YARA scanning, MIME detection)
-pip install "phishsage[attachments]"
-
-# Link / URL analysis
-pip install "phishsage[links]"
-
-# Everything
-pip install "phishsage[all]"
-```
-
----
-
-### VirusTotal API Key
-
-Required if using `--vt-scan` in any mode.
-```bash
-# Linux / macOS
-export VIRUSTOTAL_API_KEY="your_virustotal_api_key"
-
-# Windows (PowerShell)
-setx VIRUSTOTAL_API_KEY "your_virustotal_api_key"
-```
-
-
-## 3. CLI Usage
-
-PhishSage provides a command-line interface with three main modes: `headers`, `attachments`, and `links`. The `headers` and `links` modes output results in JSON format, while the `attachments` mode produces human-readable summaries only.
-
-
-### Main Help
+Required only if you use `--vt-scan` or `--enrich virustotal`.
 
 ```bash
-phishsage -h
-```
-
-**Output:**
-
-```
-usage: phishsage [-h] {headers,attachments,links} ...
-
-PhishSage
-
-positional arguments:
-  {headers,attachments,links}
-    headers             Analyze email headers for anomalies or indicators
-    attachments         Analyze or extract attachments
-    links               Analyze links in email content
-
-options:
-  -h, --help            show this help message and exit
+export VIRUSTOTAL_API_KEY="your_key_here"
 ```
 
 ---
 
-### Header Analysis
+## Usage
+
+### Header analysis
 
 ```bash
-phishsage headers -h
+# Basic parse
+phishsage headers -f email.eml
+
+# Full heuristics + all enrichment, save JSON
+phishsage headers -f email.eml --heuristics --enrich all --json -o results.json
+
+# Selective enrichment
+phishsage headers -f email.eml --heuristics --enrich mx spamhaus
 ```
 
-**Options:**
-
-```
-usage: phishsage headers [-h] -f FILE [-o FILE] [--heuristics] [--enrich [{mx,spamhaus,domain_age,all} ...]] [--json]
-
-options:
-  -h, --help            show this help message and exit
-  -f, --file FILE       Email file to analyze (.eml)
-  -o, --output FILE     Save JSON results to file (use with --json)
-  --heuristics          Analyze headers for suspicious patterns and anomalies
-  --enrich [{mx,spamhaus,domain_age,all} ...]
-                        Add threat-intel enrichment to header analysis (mx, spamhaus, domain_age). Requires --heuristics.
-  --json                Output full details in JSON format
-```
-
----
-
-### Attachment Processing
+### Link analysis
 
 ```bash
-phishsage attachments -h
+# Extract URLs
+phishsage links -f email.eml --extract
+
+# Full heuristics + enrich
+phishsage links -f email.eml --heuristics --enrich all
+
+# VirusTotal scan only
+phishsage links -f email.eml --vt-scan --json
 ```
 
-**Options:**
-
-```
-usage: phishsage attachments [-h] -f FILE [-o FILE] [--list] [--extract DIR] [--hash] [--vt-scan] [--yara PATH [PATH ...]] [--yara-verbose] [--json]
-
-options:
-  -h, --help            show this help message and exit
-  -f, --file FILE       Email file to analyze (.eml)
-  -o, --output FILE     Save JSON results to file (use with --json)
-  --list                List attachments only
-  --extract DIR         Extract attachments to specified directory
-  --hash                Compute hashes (MD5, SHA1, SHA256) for each attachment
-  --vt-scan             Check attachments against VirusTotal by SHA256
-  --yara PATH [PATH ...]
-                        Scan attachments with YARA rules. Paths can be files or directories; directories are scanned recursively for .yar/.yara
-                        files.
-  --yara-verbose        Show detailed string matches and offsets when YARA rules hit
-  --json                Output full details in JSON format
-```
-
----
-
-### Link / URL Analysis
+### Attachment analysis
 
 ```bash
-phishsage links -h
+# List attachments
+phishsage attachments -f email.eml --list
+
+# Hash + VirusTotal
+phishsage attachments -f email.eml --hash --vt-scan
+
+# YARA scan (verbose)
+phishsage attachments -f email.eml --yara ./rules/ --yara-verbose
+
+# Extract to directory
+phishsage attachments -f email.eml --extract ./output/
 ```
 
-**Options:**
+### Batch processing
 
-```
-usage: phishsage links [-h] -f FILE [-o FILE] [--extract] [--vt-scan] [--check-redirects] [--heuristics]
-                       [--enrich [{all,domain_age,certificate,virustotal,redirects} ...]] [--json]
+Pass multiple files in one run:
 
-options:
-  -h, --help            show this help message and exit
-  -f, --file FILE       Email file to analyze (.eml)
-  -o, --output FILE     Save JSON results to file (use with --json)
-  --extract             Extract URLs from the email body
-  --vt-scan             Query VirusTotal for URL reputation
-  --check-redirects     Follow HTTP redirects and show chain
-  --heuristics          Run phishing detection heuristics (use --enrich to add extra data)
-  --enrich [{all,domain_age,certificate,virustotal,redirects} ...]
-                        Add extra analysis to heuristics (requires --heuristics)
-  --json                Output full details in JSON format
+```bash
+phishsage headers -f mail1.eml mail2.eml mail3.eml --heuristics --json -o batch.json
 ```
 
 ---
 
-## 4. Configuration
+## Output
 
-PhishSage stores configuration values in the project config (`config.toml`) or environment variables. The main items you may safely adjust are:
+Without `--json`, PhishSage renders Rich terminal output with color-coded alerts. With `--json`, it outputs a structured object keyed by file path.
 
-  * `VIRUSTOTAL_API_KEY` — API key for VirusTotal scans.
-  * `MAX_REDIRECTS` — Maximum number of redirects to follow when checking redirect chains.
-  * `THRESHOLD_YOUNG`, `THRESHOLD_EXPIRING` — Domain age/expiry thresholds (in days). Domains younger than `THRESHOLD_YOUNG` or expiring within `THRESHOLD_EXPIRING` days are flagged as potentially suspicious.
-  * `ABUSABLE_PLATFORM_DOMAINS`, `SUSPICIOUS_TLDS`, `SHORTENERS` — Heuristic lists used in URL/link analysis.
-  * `SUBDOMAIN_THRESHOLD`, `TRIVIAL_SUBDOMAINS` — Used for subdomain heuristics to identify excessive or meaningful subdomains.
-  * `FREE_EMAIL_DOMAINS` — Free email providers that may indicate disposable or less-trusted addresses.
-  * `DATE_RECEIVED_DRIFT_MINUTES` — Maximum allowed difference between the `Date` header and the first `Received` hop in email headers.
-
- *Note: Only modify thresholds or heuristic lists if you understand the potential impact on false positives and overall detection accuracy.*
-
+```json
+{
+  "test.eml": {
+    "flags": true,
+    "results": {
+      "auth": {
+        "spf":  { "value": "softfail", "passed": false },
+        "dkim": { "value": "fail",     "passed": false },
+        "dmarc":{ "value": null,       "passed": null  }
+      },
+      "address_alignment": { "from_vs_reply": false, "from_vs_return": false },
+      "message_id":         { "msgid_vs_from": false },
+      "domain_consistency": { "from_vs_return": false, "from_vs_reply": false }
+    },
+    "alerts": [
+      { "type": "SPF_FAIL",            "message": "SPF check failed (spf=softfail)" },
+      { "type": "DKIM_FAIL",           "message": "DKIM check failed (dkim=fail)" },
+      { "type": "DMARC_MISSING",       "message": "DMARC result missing from Authentication-Results header" },
+      { "type": "FROM_REPLY_MISMATCH", "message": "From domain (secure-login-verification.com) does not match Reply-To domain (gmail.com)" },
+      { "type": "DATE_BEFORE_RECEIVED","message": "Date header (2026-05-26T10:00:00+00:00) is before first Received (2026-05-26T10:35:00+00:00)" }
+    ],
+    "meta": { "mail_id": "bb27b099" }
+  }
+}
+```
 
 ---
 
-## 5. Scope & Limitations
+## Configuration
 
-  * **Focused functionality:** PhishSage is not a full mail forensic suite. It prioritizes heuristics, quick triage, and enrichment over deep forensic analysis.
-  * **Network-dependent checks:** WHOIS, VirusTotal, MX, and SSL inspections rely on external services; results may vary or fail due to connectivity issues or API limits.
-  * **Attachment processing:** Currently limited to listing, extraction, hashing, and optional VirusTotal scans. Full heuristic attachment analysis will be introduced in a future release.
-  * **Output formats:** Human‑readable pretty output is the default. Use `--json` to obtain detailed structured data for all modes.
-  * **Intended use:** Designed for investigative support and enrichment. Not intended for automated blocking or enforcement in production email systems.
-  * **Evolving coverage:** Current checks under each section are limited; additional heuristics and enhanced analyses will be added in future releases.
+`config.toml` (inside the package) controls all tunable thresholds and heuristic lists. The most useful knobs:
 
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `threshold_young` | `30` days | Flag newly registered domains |
+| `threshold_expiring` | `10` days | Flag soon-to-expire domains |
+| `entropy_threshold` | `4.0` | Entropy cutoff for flagging randomly generated domain labels |
+| `subdomain_threshold` | `3` | Max non-trivial subdomain labels before flagging |
+| `max_path_depth` | `4` | URL path depth limit |
+| `date_received_drift_minutes` | `30` | Max drift between `Date` and first `Received` hop |
+| `max_redirects` | `10` | Redirect-chain follow limit |
+| `cert_recent_issue_days_threshold` | `30` | Flag recently issued certificates |
+
+Lists (`suspicious_tlds`, `shorteners`, `free_email_domains`, `abusable_platform_domains`, `trivial_subdomains`) are all editable in the same file.
 
 ---
 
-## 6. Contributing
+## Scope & limitations
 
-Contributions to PhishSage are welcome! You can help improve the project by:
+- **Triage tool, not a mail gateway.** Not designed for inline enforcement or production email filtering.
+- **Network-dependent enrichment.** WHOIS, DNS, VirusTotal, and SSL checks require connectivity and may hit rate limits.
+- **Attachment coverage.** Attachment analysis currently covers listing, extraction, hashing, VirusTotal hash lookup, and YARA scanning. Deeper content inspection is planned.
+- **False positives.** Default thresholds are set strictly and may produce false positives depending on your environment — adjust `config.toml` as needed.
 
-* Adding or refining heuristic checks for headers, attachments, and links.
-* Expanding the lists in `config.toml`.
-* Improving parsing, normalization, or output handling.
-* Reporting bugs or suggesting enhancements.
+---
 
-Before submitting changes, please ensure they are well-tested and maintain the code’s clarity, security, and reliability. Contributions that enhance detection coverage, reduce false positives, or improve usability are particularly appreciated.
+## Contributing
+
+Bug reports, heuristic improvements, new TLD/shortener/platform entries, and additional enrichment modules are all welcome. Open an issue or PR on [GitHub](https://github.com/0xlam/PhishSage).
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
