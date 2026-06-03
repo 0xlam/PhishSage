@@ -5,6 +5,7 @@ from datetime import datetime
 from phishsage.utils import get_parser
 from phishsage.outputs.writer import OutputWriter
 from phishsage.parsers import extract_mail_headers
+from phishsage.utils.cache import get_cache
 
 from phishsage.outputs.printer import (
     print_warning,
@@ -94,7 +95,10 @@ def main():
             args.enrich = ["all"]
 
     if args.output and not args.json:
-        parser.error("--output requires --json flag")
+        parser.error("--output requires --json")
+
+    if args.cache_dir and not args.cache:
+        parser.error("--cache-dir requires --cache")
 
     seen = set()
     dupes = [f for f in args.file if f in seen or seen.add(f)]
@@ -103,6 +107,8 @@ def main():
     args.file = list(dict.fromkeys(args.file))
 
     results = {}
+
+    cache = get_cache(args.cache_dir) if args.cache else None
 
     for filepath in args.file:
         try:
@@ -119,7 +125,7 @@ def main():
             continue
 
         mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
-        output = asyncio.run(run(args, parsed_mail, mail_headers))
+        output = asyncio.run(run(args, parsed_mail, mail_headers, cache=cache))
         results[filepath] = output
 
     if args.json:
@@ -131,19 +137,22 @@ def main():
             print_rich_output(args, filepath, output)
 
 
-async def run(args, mail, mail_headers):
+async def run(args, mail, mail_headers, cache=None):
     if args.mode == "attachments":
         from phishsage.handlers.attachments import handle_attachments
 
-        return await handle_attachments(args, mail)
+        return await handle_attachments(args, mail, cache=cache)
+
     elif args.mode == "links":
         from phishsage.handlers.links import handle_links
 
-        return await handle_links(args, mail)
+        return await handle_links(args, mail, cache=cache)
+
     elif args.mode == "headers":
         from phishsage.handlers.headers import handle_headers
 
-        return await handle_headers(args, mail_headers)
+        return await handle_headers(args, mail_headers, cache=cache)
+
     else:
         print_error(f"Unknown mode: {args.mode}")
         return None

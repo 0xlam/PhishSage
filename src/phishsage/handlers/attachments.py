@@ -1,3 +1,4 @@
+from functools import partial
 from phishsage.parsers.attachment_processor import AttachmentProcessor
 from phishsage.services.virustotal import VirusTotalService
 from phishsage.utils.yara_engine import YaraEngine
@@ -5,7 +6,7 @@ from phishsage.config.loader import VIRUSTOTAL_API_KEY
 from phishsage.heuristics.attachments import AttachmentHeuristics
 
 
-async def handle_attachments(args, mail):
+async def handle_attachments(args, mail, cache=None):
     processor = AttachmentProcessor(mail)
     json_output = {}
 
@@ -25,12 +26,12 @@ async def handle_attachments(args, mail):
         json_output["hashes"] = hashes or {}
 
     if args.vt_scan or args.yara:
-        vt_client   = None
+        vt_client = None
         yara_engine = None
 
         if args.vt_scan:
             vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
-            vt_client  = vt_service.lookup_file_hash
+            vt_client = partial(vt_service.lookup_file_hash, cache=cache)
 
         if args.yara:
             yara_engine = YaraEngine(rules_path=args.yara)
@@ -51,5 +52,5 @@ async def handle_attachments(args, mail):
         if args.yara:
             results = heur.yara_scan()
             json_output["yara_scan"] = results or {}
-            
+
     return json_output

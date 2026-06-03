@@ -1,3 +1,4 @@
+from functools import partial
 import aiodns
 from phishsage.heuristics.headers import HeaderHeuristics
 from phishsage.services.whois import WhoisService
@@ -19,7 +20,7 @@ def _build_header_config() -> HeaderHeuristicConfig:
     )
 
 
-async def handle_headers(args, headers):
+async def handle_headers(args, headers, cache=None):
     if args.heuristics:
         config = _build_header_config()
 
@@ -29,7 +30,7 @@ async def handle_headers(args, headers):
         dns_resolver = None
 
         if "domain_age" in enrich:
-            whois_lookup = WhoisService().lookup
+            whois_lookup = partial(WhoisService().lookup, cache=cache)
 
         if "mx" in enrich or "spamhaus" in enrich:
             dns_resolver = aiodns.DNSResolver()
@@ -40,13 +41,11 @@ async def handle_headers(args, headers):
             dns_resolver=dns_resolver,
         )
 
-        heuristics_result = await checker.run_headers_heuristics(
-            headers, enrich=enrich
-        )
+        heuristics_result = await checker.run_headers_heuristics(headers, enrich=enrich)
 
         return {
-            "flags":   heuristics_result.flags,
+            "flags": heuristics_result.flags,
             "results": heuristics_result.result,
-            "alerts":  heuristics_result.alerts,
-            "meta":    heuristics_result.meta,
+            "alerts": heuristics_result.alerts,
+            "meta": heuristics_result.meta,
         }

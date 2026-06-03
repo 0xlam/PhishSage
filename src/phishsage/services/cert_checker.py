@@ -1,6 +1,7 @@
 import ssl
 import socket
 import asyncio
+import dataclasses
 from datetime import datetime, timezone
 
 try:
@@ -13,28 +14,39 @@ except ImportError as exc:
         "Install with: pip install phishsage[links]"
     ) from exc
 
-
 from phishsage.models.certificate import CertificateResult
-
+from phishsage.config.loader import CACHE_TTL_SSL
 
 
 class SSLService:
-
-    def __init__(
-        self,
-        port: int,
-        timeout: int = 10,
-        operation_timeout: int = 15,
-    ):
+    def __init__(self, port: int, timeout: int = 10, operation_timeout: int = 15):
         self.port = port
         self.timeout = timeout
         self.operation_timeout = operation_timeout
 
-    async def fetch(self, hostname: str) -> CertificateResult:
-        return await asyncio.wait_for(
+    async def fetch(self, hostname: str, cache=None) -> CertificateResult:
+        key = f"ssl:{hostname}"
+
+        if cache:
+            try:
+                cached = cache.get(key)
+                if cached is not None:
+                    return CertificateResult(**cached)
+            except Exception:
+                pass
+
+        result = await asyncio.wait_for(
             asyncio.to_thread(self._fetch_sync, hostname),
             timeout=self.operation_timeout,
         )
+
+        if cache:
+            try:
+                cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_SSL)
+            except Exception:
+                pass
+
+        return result
 
     def _fetch_sync(self, hostname: str) -> CertificateResult:
         socket.setdefaulttimeout(self.timeout)

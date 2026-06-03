@@ -1,4 +1,3 @@
-from __future__ import annotations
 from pathlib import Path
 from phishsage.config.loader import CACHE_DIR
 

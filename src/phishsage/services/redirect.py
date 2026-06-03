@@ -1,15 +1,40 @@
 import aiohttp
 import asyncio
+import dataclasses
 from phishsage.models.redirect import RedirectResult
+from phishsage.config.loader import CACHE_TTL_REDIRECT
+
+
+_SKIP_CACHE = {0}  # timeouts and connection failures
 
 
 class RedirectService:
-    def __init__(self, session: aiohttp.ClientSession, max_redirects: int ):
-
+    def __init__(self, session: aiohttp.ClientSession, max_redirects: int):
         self.session = session
         self.max_redirects = max_redirects
 
-    async def resolve(self, url: str) -> RedirectResult:
+    async def resolve(self, url: str, cache=None) -> RedirectResult:
+        key = f"redirect:{url}"
+
+        if cache:
+            try:
+                cached = cache.get(key)
+                if cached is not None:
+                    return RedirectResult(**cached)
+            except Exception:
+                pass
+
+        result = await self._live_resolve(url)
+
+        if cache and result.final_status not in _SKIP_CACHE:
+            try:
+                cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_REDIRECT)
+            except Exception:
+                pass
+
+        return result
+
+    async def _live_resolve(self, url: str) -> RedirectResult:
         try:
             async with self.session.get(
                 url,
@@ -19,7 +44,9 @@ class RedirectService:
 
                 history = response.history or []
 
-                chain = [r.url.human_repr() for r in history] + [response.url.human_repr()]
+                chain = [r.url.human_repr() for r in history] + [
+                    response.url.human_repr()
+                ]
                 statuses = [r.status for r in history] + [response.status]
 
                 return RedirectResult(
@@ -31,7 +58,6 @@ class RedirectService:
                     redirect_count=len(chain) - 1,
                     redirected=len(chain) > 1,
                 )
-
         except aiohttp.TooManyRedirects:
             return RedirectResult(
                 original_url=url,
@@ -42,19 +68,7 @@ class RedirectService:
                 redirect_count=self.max_redirects,
                 redirected=True,
             )
-
-        except asyncio.TimeoutError:
-            return RedirectResult(
-                original_url=url,
-                chain=[],
-                status_codes=[],
-                final_url="",
-                final_status=0,
-                redirect_count=0,
-                redirected=False,
-            )
-
-        except aiohttp.ClientError:
+        except (asyncio.TimeoutError, aiohttp.ClientError):
             return RedirectResult(
                 original_url=url,
                 chain=[],
