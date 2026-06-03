@@ -36,7 +36,7 @@ class VirusTotalService:
 
         key = f"vt:{resource_type}:{resource}"
 
-        if cache:
+        if cache is not None:
             try:
                 cached = cache.get(key)
                 if cached is not None:
@@ -48,7 +48,7 @@ class VirusTotalService:
 
         result = await self._live_lookup(resource, resource_type)
 
-        if cache and result.status not in _SKIP_CACHE:
+        if cache is not None and result.status not in _SKIP_CACHE:
             try:
                 cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_VT)
             except Exception:

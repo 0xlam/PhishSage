@@ -16,7 +16,7 @@ class RedirectService:
     async def resolve(self, url: str, cache=None) -> RedirectResult:
         key = f"redirect:{url}"
 
-        if cache:
+        if cache is not None:
             try:
                 cached = cache.get(key)
                 if cached is not None:
@@ -26,7 +26,7 @@ class RedirectService:
 
         result = await self._live_resolve(url)
 
-        if cache and result.final_status not in _SKIP_CACHE:
+        if cache is not None and result.final_status not in _SKIP_CACHE:
             try:
                 cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_REDIRECT)
             except Exception:

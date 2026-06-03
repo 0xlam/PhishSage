@@ -27,7 +27,7 @@ class SSLService:
     async def fetch(self, hostname: str, cache=None) -> CertificateResult:
         key = f"ssl:{hostname}"
 
-        if cache:
+        if cache is not None:
             try:
                 cached = cache.get(key)
                 if cached is not None:
@@ -40,7 +40,7 @@ class SSLService:
             timeout=self.operation_timeout,
         )
 
-        if cache:
+        if cache is not None:
             try:
                 cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_SSL)
             except Exception:

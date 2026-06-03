@@ -13,7 +13,7 @@ class WhoisService:
     async def lookup(self, domain: str, cache=None) -> WhoisResult:
         key = f"whois:{domain}"
 
-        if cache:
+        if cache is not None:
             try:
                 cached = cache.get(key)
                 if cached is not None:
@@ -23,7 +23,7 @@ class WhoisService:
 
         result = await self._live_lookup(domain)
 
-        if cache:
+        if cache is not None:
             try:
                 cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_WHOIS)
             except Exception:
