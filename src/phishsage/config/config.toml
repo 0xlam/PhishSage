@@ -111,4 +111,5 @@ ttl_vt       = 86400    # 24h
 ttl_whois    = 604800   # 7d
 ttl_redirect = 21600    # 6h
 ttl_ssl      = 43200    # 12h
-
+ttl_mx       = 86400    # 24h
+ttl_spamhaus = 3600     # 1h

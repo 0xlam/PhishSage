@@ -19,12 +19,13 @@ def _build_header_config() -> HeaderHeuristicConfig:
         FREE_EMAIL_DOMAINS=FREE_EMAIL_DOMAINS,
     )
 
-
 async def handle_headers(args, headers, cache=None):
     if args.heuristics:
         config = _build_header_config()
-
         enrich = args.enrich or []
+
+        if "all" in enrich:
+            enrich = ["mx", "spamhaus", "domain_age"]
 
         whois_lookup = None
         dns_resolver = None
@@ -39,13 +40,12 @@ async def handle_headers(args, headers, cache=None):
             config=config,
             whois_lookup=whois_lookup,
             dns_resolver=dns_resolver,
+            cache=cache,
         )
-
         heuristics_result = await checker.run_headers_heuristics(headers, enrich=enrich)
-
         return {
-            "flags": heuristics_result.flags,
+            "flags":   heuristics_result.flags,
             "results": heuristics_result.result,
-            "alerts": heuristics_result.alerts,
-            "meta": heuristics_result.meta,
+            "alerts":  heuristics_result.alerts,
+            "meta":    heuristics_result.meta,
         }
