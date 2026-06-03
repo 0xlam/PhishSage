@@ -22,15 +22,21 @@ def get_parser():
     )
 
     common.add_argument(
-        "--no-cache",
+        "--json",
         action="store_true",
-        help="Disable caching for this run",
+        help="Output results in JSON format",
+    )
+
+    common.add_argument(
+        "--cache",
+        action="store_true",
+        help="Cache external lookup results to disk (default: ~/.cache/phishsage)",
     )
 
     common.add_argument(
         "--cache-dir",
         metavar="DIR",
-        help="Custom cache directory (default: ~/.cache/phishsage)",
+        help="Custom cache directory (use with --cache)",
     )
 
     # ---- SUBCOMMANDS ----
@@ -53,10 +59,6 @@ def get_parser():
         nargs="*",
         choices=["mx", "spamhaus", "domain_age", "all"],
         help="Add threat-intel enrichment to header analysis (mx, spamhaus, domain_age). Requires --heuristics.",
-    )
-
-    headers_parser.add_argument(
-        "--json", action="store_true", help="Output full details in JSON format"
     )
 
     # ----ATTACHMENTS----
@@ -91,9 +93,6 @@ def get_parser():
         action="store_true",
         help="Show detailed string matches and offsets when YARA rules hit",
     )
-    attach_parser.add_argument(
-        "--json", action="store_true", help="Output full details in JSON format"
-    )
 
     # ----LINKS----
     link_parser = subparsers.add_parser(
@@ -122,10 +121,6 @@ def get_parser():
         nargs="*",
         choices=["all", "domain_age", "certificate", "virustotal", "redirects"],
         help="Add extra analysis to heuristics (requires --heuristics)",
-    )
-
-    link_parser.add_argument(
-        "--json", action="store_true", help="Output full details in JSON format"
     )
 
     return parser
