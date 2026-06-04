@@ -548,7 +548,8 @@ class HeaderHeuristics:
             try:
                 cached = self.cache.get(key)
                 if cached is not None:
-                    return cached
+                    entry, alerts, meta = cached
+                    return label, entry, alerts, meta
             except Exception:
                 pass
 
@@ -582,7 +583,7 @@ class HeaderHeuristics:
                     }
                 )
 
-        final = (label, entry, alerts, meta)
+        final = (entry, alerts, meta)
 
         if self.cache is not None and not entry.get("error"):
             try:
@@ -590,7 +591,7 @@ class HeaderHeuristics:
             except Exception:
                 pass
 
-        return final
+        return label, entry, alerts, meta
 
     async def check_spamhaus(self, headers) -> dict:
         """
