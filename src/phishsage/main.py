@@ -5,7 +5,6 @@ from datetime import datetime
 from phishsage.utils import get_parser
 from phishsage.outputs.writer import OutputWriter
 from phishsage.parsers import extract_mail_headers
-from phishsage.utils.cache import get_cache
 
 from phishsage.outputs.printer import (
     print_warning,
@@ -108,7 +107,10 @@ def main():
 
     results = {}
 
-    cache = get_cache(args.cache_dir) if args.cache else None
+    cache = None
+    if args.cache:
+        from phishsage.utils.cache import get_cache
+        cache = get_cache(args.cache_dir)
 
     for filepath in args.file:
         try:
