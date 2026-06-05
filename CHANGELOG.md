@@ -98,3 +98,15 @@
 ### Fixed
 - VirusTotal rich output showing `unknown`/`unavailable` due to printer
   reading from a non-existent `meta` wrapper instead of top-level keys
+
+
+## [2.4.0] - 2026-06-05
+
+### Added
+- `--cache` and `--cache-dir` CLI flags for opt-in disk caching.
+- `[cache]` optional dependency group with `diskcache`.
+- Cache TTL configuration for VirusTotal, WHOIS, redirects, SSL certificates, MX, and Spamhaus lookups in `config.toml`.
+
+### Changed
+- Cached VirusTotal, WHOIS, redirect, SSL certificate, MX, and Spamhaus results using configurable TTLs.
+- Relaxed supported dependency bounds for `rich` and `cryptography`.
