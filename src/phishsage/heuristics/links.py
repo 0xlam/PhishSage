@@ -1,6 +1,7 @@
 import math
 import asyncio
 import ipaddress
+import traceback
 from collections import Counter
 
 from phishsage.models.results import LinkHeuristicResult
