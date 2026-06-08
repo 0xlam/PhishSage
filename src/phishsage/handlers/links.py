@@ -1,6 +1,5 @@
 from functools import partial
 import asyncio
-import os
 import aiohttp
 
 from phishsage.parsers import parse_url, extract_links

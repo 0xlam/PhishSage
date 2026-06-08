@@ -1,6 +1,6 @@
 import re
 import asyncio
-from datetime import timedelta, timezone, datetime
+from datetime import timedelta, timezone
 from dateutil import parser
 
 import aiodns

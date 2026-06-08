@@ -1,5 +1,4 @@
 import asyncio
-import json
 import mailparser
 from datetime import datetime
 from phishsage.utils import get_parser

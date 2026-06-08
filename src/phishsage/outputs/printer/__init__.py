@@ -17,6 +17,7 @@ from .links import (
 __all__ = [
     "print_warning",
     "print_error",
+    "print_file_header",
     "print_header_heuristics",
     "print_attachment_listing",
     "print_attachment_extraction",
