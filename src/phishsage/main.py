@@ -81,11 +81,7 @@ def print_rich_output(args, filepath, output):
         return
 
 
-def main():
-    parser = get_parser()
-    args = parser.parse_args()
-
-    # ---- ARGUMENT VALIDATION ----
+def validate_args(args, parser):
     if args.mode in ("headers", "links"):
         if args.enrich and not args.heuristics:
             parser.error("--enrich requires --heuristics")
@@ -98,44 +94,57 @@ def main():
     if args.cache_dir and not args.cache:
         parser.error("--cache-dir requires --cache")
 
+
+def deduplicate_files(files):
     seen = set()
-    dupes = [f for f in args.file if f in seen or seen.add(f)]
-    if dupes:
-        print_warning(f"Duplicate files removed: {dupes}")
-    args.file = list(dict.fromkeys(args.file))
+    duplicates = []
 
-    results = {}
+    for path in files:
+        if path in seen:
+            duplicates.append(path)
+        else:
+            seen.add(path)
 
-    cache = None
-    if args.cache:
-        from phishsage.utils.cache import get_cache
-        cache = get_cache(args.cache_dir)
+    if duplicates:
+        print_warning(f"Duplicate files removed: {duplicates}")
 
-    for filepath in args.file:
-        try:
-            with open(filepath, "rb") as f:
-                raw_mail_bytes = f.read()
-        except Exception as e:
-            results[filepath] = {"error": f"Failed to read: {e}"}
-            continue
+    return list(dict.fromkeys(files))
 
-        try:
-            parsed_mail = mailparser.parse_from_bytes(raw_mail_bytes)
-        except Exception as e:
-            results[filepath] = {"error": f"Failed to parse: {e}"}
-            continue
 
-        mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
-        output = asyncio.run(run(args, parsed_mail, mail_headers, cache=cache))
-        results[filepath] = output
+def initialize_cache(args):
+    if not args.cache:
+        return None
 
+    from phishsage.utils.cache import get_cache
+
+    return get_cache(args.cache_dir)
+
+
+def process_file(filepath, args, cache):
+    try:
+        with open(filepath, "rb") as f:
+            raw_mail_bytes = f.read()
+    except Exception as e:
+        return {"error": f"Failed to read: {e}"}
+
+    try:
+        parsed_mail = mailparser.parse_from_bytes(raw_mail_bytes)
+    except Exception as e:
+        return {"error": f"Failed to parse: {e}"}
+
+    mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
+
+    return asyncio.run(run(args, parsed_mail, mail_headers, cache=cache))
+
+
+def write_results(args, results):
     if args.json:
         writer = OutputWriter(args.output, default_serializer=default_serializer)
         writer.save(results)
+        return
 
-    else:
-        for filepath, output in results.items():
-            print_rich_output(args, filepath, output)
+    for filepath, output in results.items():
+        print_rich_output(args, filepath, output)
 
 
 async def run(args, mail, mail_headers, cache=None):
@@ -157,6 +166,29 @@ async def run(args, mail, mail_headers, cache=None):
     else:
         print_error(f"Unknown mode: {args.mode}")
         return None
+
+
+def main():
+    parser = get_parser()
+    args = parser.parse_args()
+
+    validate_args(args, parser)
+    args.file = deduplicate_files(args.file)
+
+    cache = initialize_cache(args)
+    results = {}
+
+    for filepath in args.file:
+        try:
+            results[filepath] = process_file(
+                filepath=filepath,
+                args=args,
+                cache=cache,
+            )
+        except Exception as e:
+            results[filepath] = {"error": f"Failed to process: {e}"}
+
+    write_results(args, results)
 
 
 if __name__ == "__main__":
