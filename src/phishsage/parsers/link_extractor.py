@@ -13,5 +13,4 @@ def extract_links(html_body):
         if href:
             links.append(href)
 
-    unique_links = list(dict.fromkeys(links))
-    return unique_links
+    return list(dict.fromkeys(links))
