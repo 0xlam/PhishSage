@@ -57,7 +57,11 @@ cache = [
     "diskcache>=5.6,<6",
 ]
 all = [
-    "phishsage[attachments,links,cache]",
+    "yara-python>=4.5,<5",
+    "python-magic>=0.4,<1",
+    "vt-py>=0.18,<1",
+    "cryptography>=43.0,<49",
+    "diskcache>=5.6,<6",
 ]
 
 
@@ -66,6 +70,7 @@ phishsage = "phishsage.main:main"
 
 [project.urls]
 Repository = "https://github.com/0xlam/PhishSage"
+Changelog = "https://github.com/0xlam/PhishSage/blob/main/CHANGELOG.md"
 Issues = "https://github.com/0xlam/PhishSage/issues"
 
 [tool.setuptools]
