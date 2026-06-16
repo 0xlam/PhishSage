@@ -70,127 +70,131 @@ def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuri
     )
 
 
-async def handle_links(args, mail, cache=None):
-    html_body = mail.body or ""
-    links = extract_links(html_body)
+async def _vt_scan(web_urls, cache):
+    vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
+    analyzer = LinkHeuristics(
+        config=None, vt_lookup=partial(vt_service.lookup_url, cache=cache)
+    )
 
+    tasks = [analyzer.scan_virustotal(parse_url(url)) for url in web_urls]
+    vt_results = await asyncio.gather(*tasks)
+
+    vt_dict = {}
+
+    for url, result in zip(web_urls, vt_results):
+        stats = result.meta.get("stats") or {}
+        vt_dict[url] = {
+            "status": result.meta.get("status"),
+            "stats": stats,
+            "last_analysis_date": result.meta.get("last_analysis_date"),
+            "first_submission_date": result.meta.get("first_submission_date"),
+        }
+
+    return vt_dict
+
+
+async def _follow_redirects(web_urls, cache):
+    async with aiohttp.ClientSession() as session:
+        redirect_service = RedirectService(session=session, max_redirects=MAX_REDIRECTS)
+
+        analyzer = LinkHeuristics(
+            config=None, redirect_lookup=partial(redirect_service.resolve, cache=cache)
+        )
+
+        tasks = [analyzer.resolve_redirect_chain(parse_url(url)) for url in web_urls]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    redirect_results = []
+    for url, result in zip(web_urls, results):
+        if isinstance(result, Exception):
+            redirect_results.append(
+                {
+                    "original_url": url,
+                    "error": str(result),
+                }
+            )
+            continue
+
+        meta = result.meta
+        final_url = meta.get("final_url")
+        status_codes = meta.get("status_codes", [])
+
+        if not final_url and not status_codes:
+            redirect_results.append(
+                {
+                    "original_url": meta.get("original_url", url),
+                    "error": "request_failed",
+                }
+            )
+            continue
+
+        redirect_results.append(
+            {
+                "original_url": meta.get("original_url", url),
+                "final_url": meta.get("final_url"),
+                "redirected": meta.get("redirected", False),
+                "redirect_count": meta.get("redirect_count", 0),
+                "status_codes": meta.get("status_codes", []),
+                "redirect_chain": meta.get("redirect_chain", []),
+            }
+        )
+
+    return redirect_results
+
+
+async def _run_heuristics(web_urls, enrich, cache):
+    session = None
+    redirect_service = None
+    enrich = enrich or []
+
+    try:
+        if "redirects" in enrich or "all" in enrich:
+            session = aiohttp.ClientSession()
+            redirect_service = RedirectService(
+                session=session, max_redirects=MAX_REDIRECTS
+            )
+
+        analyzer = _build_analyzer(
+            enrich=enrich, redirect_service=redirect_service, cache=cache
+        )
+        return await analyzer.run_link_heuristics(web_urls)
+
+    finally:
+        if session:
+            await session.close()
+
+
+async def handle_links(args, mail, cache=None):
+    links = extract_links(mail.body or "")
     if not links:
         return {"error": "No URLs found in the email"}
 
     web_urls = [u for u in links if u.lower().startswith(("http://", "https://"))]
-    non_web_urls = [
-        u for u in links if not u.lower().startswith(("http://", "https://"))
-    ]
+    non_web = [u for u in links if u not in web_urls]
 
     json_output = {}
 
-    # --- URL Extraction ---
     if args.extract:
         json_output.setdefault("analysis", {})["urls"] = {
             "total": len(links),
             "web": web_urls,
-            "non_web": non_web_urls,
+            "non_web": non_web,
         }
 
-    # --- VirusTotal Scan ---
     if args.vt_scan:
-        vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
-        analyzer = LinkHeuristics(
-            config=None, vt_lookup=partial(vt_service.lookup_url, cache=cache)
+        json_output.setdefault("analysis", {})["virustotal"] = await _vt_scan(
+            web_urls, cache
         )
 
-        vt_tasks = [analyzer.scan_virustotal(parse_url(url)) for url in web_urls]
-        vt_results = await asyncio.gather(*vt_tasks)
-
-        vt_dict = {}
-        for url, result in zip(web_urls, vt_results):
-            stats = result.meta.get("stats") or {}
-            vt_dict[url] = {
-                "status": result.meta.get("status"),
-                "stats": stats,
-                "last_analysis_date": result.meta.get("last_analysis_date"),
-                "first_submission_date": result.meta.get("first_submission_date"),
-            }
-
-        json_output.setdefault("analysis", {})["virustotal"] = vt_dict
-
-    # --- Redirect Analysis ---
     if args.check_redirects:
-        async with aiohttp.ClientSession() as session:
-            redirect_service = RedirectService(
-                session=session,
-                max_redirects=MAX_REDIRECTS,
-            )
+        json_output.setdefault("analysis", {})["redirects"] = await _follow_redirects(
+            web_urls, cache
+        )
 
-            analyzer = LinkHeuristics(
-                config=None,
-                redirect_lookup=partial(redirect_service.resolve, cache=cache),
-            )
-
-            tasks = [
-                analyzer.resolve_redirect_chain(parse_url(url)) for url in web_urls
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        redirect_results = []
-        for url, result in zip(web_urls, results):
-            if isinstance(result, Exception):
-                redirect_results.append(
-                    {
-                        "original_url": url,
-                        "error": str(result),
-                    }
-                )
-                continue
-
-            meta = result.meta
-            final_url = meta.get("final_url")
-            status_codes = meta.get("status_codes", [])
-
-            if not final_url and not status_codes:
-                redirect_results.append(
-                    {
-                        "original_url": meta.get("original_url", url),
-                        "error": "request_failed",
-                    }
-                )
-                continue
-
-            redirect_results.append(
-                {
-                    "original_url": meta.get("original_url", url),
-                    "final_url": meta.get("final_url"),
-                    "redirected": meta.get("redirected", False),
-                    "redirect_count": meta.get("redirect_count", 0),
-                    "status_codes": meta.get("status_codes", []),
-                    "redirect_chain": meta.get("redirect_chain", []),
-                }
-            )
-
-        json_output.setdefault("analysis", {})["redirects"] = redirect_results
-
-    # --- Phishing Heuristics ---
     if args.heuristics:
-        enrich = args.enrich or []
-        session = None
-        redirect_service = None
-
-        if "redirects" in enrich or "all" in enrich:
-            session = aiohttp.ClientSession()
-            redirect_service = RedirectService(
-                session=session,
-                max_redirects=MAX_REDIRECTS,
-            )
-
-        try:
-            analyzer = _build_analyzer(
-                enrich=enrich, redirect_service=redirect_service, cache=cache
-            )
-            heuristics = await analyzer.run_link_heuristics(web_urls)
-        finally:
-            if redirect_service:
-                await session.close()
-
-        json_output.setdefault("analysis", {})["heuristics"] = heuristics
+        json_output.setdefault("analysis", {})["heuristics"] = await _run_heuristics(
+            web_urls, args.enrich, cache
+        )
 
     return json_output
