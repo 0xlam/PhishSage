@@ -3,56 +3,52 @@ from phishsage.parsers.attachment_processor import AttachmentProcessor
 from phishsage.heuristics.attachments import AttachmentHeuristics
 
 
+def _build_vt_client(cache):
+    from phishsage.services.virustotal import VirusTotalService
+    from phishsage.config.loader import VIRUSTOTAL_API_KEY
+
+    service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
+    return partial(service.lookup_file_hash, cache=cache)
+
+
+def _build_yara_engine(rules_path):
+    from phishsage.utils.yara_engine import YaraEngine
+
+    return YaraEngine(rules_path=rules_path)
+
+
 async def handle_attachments(args, mail, cache=None):
     processor = AttachmentProcessor(mail)
     json_output = {}
 
     # --- Listing ---
     if args.list:
-        results = processor.list()
-        json_output["listing"] = results or {}
+        json_output["listing"] = processor.list() or {}
 
     # --- Extraction ---
     if args.extract:
-        results = processor.extract(save_dir=args.extract)
-        json_output["extraction"] = results or {}
+        json_output["extraction"] = processor.extract(save_dir=args.extract) or {}
 
     # --- Hashing ---
     if args.hash:
-        hashes = processor.hash()
-        json_output["hashes"] = hashes or {}
+        json_output["hashes"] = processor.hash() or {}
 
-    if args.vt_scan or args.yara:
-        vt_client = None
-        yara_engine = None
+    if not (args.vt_scan or args.yara):
+        return json_output
 
-        if args.vt_scan:
-            from phishsage.services.virustotal import VirusTotalService
-            from phishsage.config.loader import VIRUSTOTAL_API_KEY
+    heur = AttachmentHeuristics(
+        processor=processor,
+        vt_client=_build_vt_client(cache) if args.vt_scan else None,
+        yara_engine=_build_yara_engine(args.yara) if args.yara else None,
+        yara_verbose=args.yara_verbose,
+    )
 
-            vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
-            vt_client = partial(vt_service.lookup_file_hash, cache=cache)
+    # --- VirusTotal ---
+    if args.vt_scan:
+        json_output["virustotal_scan"] = await heur.vt_scan() or {}
 
-        if args.yara:
-            from phishsage.utils.yara_engine import YaraEngine
-
-            yara_engine = YaraEngine(rules_path=args.yara)
-
-        heur = AttachmentHeuristics(
-            processor=processor,
-            vt_client=vt_client,
-            yara_engine=yara_engine,
-            yara_verbose=args.yara_verbose,
-        )
-
-        # --- VirusTotal ---
-        if args.vt_scan:
-            results = await heur.vt_scan()
-            json_output["virustotal_scan"] = results or {}
-
-        # --- YARA ---
-        if args.yara:
-            results = heur.yara_scan()
-            json_output["yara_scan"] = results or {}
+    # --- YARA ---
+    if args.yara:
+        json_output["yara_scan"] = heur.yara_scan() or {}
 
     return json_output
