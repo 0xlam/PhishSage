@@ -484,6 +484,8 @@ class LinkHeuristics:
             redirect_count = len(chain_result.chain) - 1
             redirected = redirect_count > 0
 
+            if redirected:
+                reasons.append("has_redirect_chain")
 
             return LinkHeuristicResult(
                 name="redirect_chain",
