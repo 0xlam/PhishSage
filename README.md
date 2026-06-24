@@ -34,10 +34,12 @@ pip install phishsage
 ### With extras
 
 ```bash
-pip install "phishsage[cache]"         # Disk caching for external enrichment lookups
-pip install "phishsage[attachments]"   # YARA scanning, MIME detection, VirusTotal hash lookup
-pip install "phishsage[links]"         # SSL/TLS certificate checks, VirusTotal URL lookup
-pip install "phishsage[all]"           # Everything
+pip install "phishsage[attachments]"        # MIME detection
+pip install "phishsage[attachments,yara]"   # + YARA scanning
+pip install "phishsage[virustotal]"         # VirusTotal URL/hash lookup
+pip install "phishsage[ssl]"                # SSL/TLS certificate checks
+pip install "phishsage[cache]"              # Disk caching for external enrichment lookups
+pip install "phishsage[all]"                # Everything
 ```
 
 ### From source
