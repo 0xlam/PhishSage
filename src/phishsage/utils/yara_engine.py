@@ -9,7 +9,7 @@ try:
 except ImportError as exc:
     raise ImportError(
         "YARA scanning requires additional dependencies. "
-        "Install with: pip install phishsage[attachments]"
+        "Install with: pip install phishsage[yara]"
     ) from exc
 
 
