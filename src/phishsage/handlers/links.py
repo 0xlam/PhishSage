@@ -20,10 +20,6 @@ from phishsage.config.loader import (
     TRIVIAL_SUBDOMAINS,
     VIRUSTOTAL_API_KEY,
 )
-from phishsage.services.virustotal import VirusTotalService
-from phishsage.services.whois import WhoisService
-from phishsage.services.redirect import RedirectService
-from phishsage.services.cert_checker import SSLService
 
 
 def _build_config() -> LinkHeuristicConfig:
@@ -48,16 +44,19 @@ def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuri
     vt_lookup = whois_lookup = redirect_lookup = ssl_fetcher = None
 
     if "virustotal" in enrich or "all" in enrich:
+        from phishsage.services.virustotal import VirusTotalService
         vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
         vt_lookup = partial(vt_service.lookup_url, cache=cache)
 
     if "domain_age" in enrich or "all" in enrich:
+        from phishsage.services.whois import WhoisService
         whois_lookup = partial(WhoisService().lookup, cache=cache)
 
     if redirect_service and ("redirects" in enrich or "all" in enrich):
         redirect_lookup = partial(redirect_service.resolve, cache=cache)
 
     if "certificate" in enrich or "all" in enrich:
+        from phishsage.services.cert_checker import SSLService
         ssl_fetcher = partial(SSLService(port=SSL_DEFAULT_PORT).fetch, cache=cache)
 
     return LinkHeuristics(
@@ -71,6 +70,7 @@ def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuri
 
 
 async def _vt_scan(web_urls, cache):
+    from phishsage.services.virustotal import VirusTotalService
     vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
     analyzer = LinkHeuristics(
         config=None, vt_lookup=partial(vt_service.lookup_url, cache=cache)
@@ -94,6 +94,7 @@ async def _vt_scan(web_urls, cache):
 
 
 async def _follow_redirects(web_urls, cache):
+    from phishsage.services.redirect import RedirectService
     async with aiohttp.ClientSession() as session:
         redirect_service = RedirectService(session=session, max_redirects=MAX_REDIRECTS)
 
@@ -150,6 +151,7 @@ async def _run_heuristics(web_urls, enrich, cache):
 
     try:
         if "redirects" in enrich or "all" in enrich:
+            from phishsage.services.redirect import RedirectService
             session = aiohttp.ClientSession()
             redirect_service = RedirectService(
                 session=session, max_redirects=MAX_REDIRECTS
