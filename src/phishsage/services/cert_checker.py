@@ -11,7 +11,7 @@ try:
 except ImportError as exc:
     raise ImportError(
         "Link analysis requires additional dependencies. "
-        "Install with: pip install phishsage[links]"
+        "Install with: pip install phishsage[ssl]"
     ) from exc
 
 from phishsage.models.certificate import CertificateResult
