@@ -20,9 +20,6 @@ def normalize_domain(domain):
 
 
 def normalize_header_value(value):
-    """
-    Normalize header value by
-    """
     if value is None:
         return ""
 
@@ -40,7 +37,7 @@ def validate_and_normalize_email(email):
         return None
     try:
         v = validate_email(email, allow_smtputf8=True, check_deliverability=False)
-        return v.email
+        return v.normalized
     except EmailNotValidError:
         return None
 
@@ -75,19 +72,16 @@ def extract_email(value):
     candidate = f"{match.group(1)}@{match.group(2)}"
     return validate_and_normalize_email(candidate)
 
-
 def get_domain(email):
     """Extract and normalize domain part from a validated email."""
     if not email or "@" not in email:
         return None
     try:
         domain = email.split("@")[1]
-        return normalize_domain(
-            tldextract.extract(domain).top_domain_under_public_suffix
-        )
-    except IndexError:
+        extracted = tldextract.extract(domain).top_domain_under_public_suffix
+        return normalize_domain(extracted)
+    except Exception:
         return None
-
 
 def is_domain_match(parent_domain, child_domain):
     """Check if child domain belongs to the same base domain as parent."""
