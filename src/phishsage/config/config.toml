@@ -3,31 +3,37 @@ virustotal_api_key = ""
 
 [heuristics]
 
-
 suspicious_tlds = [
-    'icu', 'xyz', 'top', 'ru', 'cn', 'online', 'zip', 'mov',
-    'porn', 'xxx', 'casino', 'poker', 'buzz', 'support', 'sbs',
-    'loan', 'lol', 'info', 'bond', 'today', 'shop', 'xin', 'gdn',
-    'bid', 'one', 'live', 'site', 'cfd', 'pro', 'cc', 'monster',
-    'click', 'fund', 'trade', 'forex', 'market', 'win', 'accountant',
-    'credit', 'cheap', 'discount', 'sale', 'vip'
-
+    'icu', 'xyz', 'top', 'ru', 'cn', 'online', 'zip',
+    'mov', 'porn', 'xxx', 'casino', 'poker', 'buzz', 'support',
+    'sbs', 'loan', 'lol', 'info', 'bond', 'today', 'shop',
+    'xin', 'gdn', 'bid', 'one', 'live', 'site', 'cfd',
+    'pro', 'cc', 'monster', 'click', 'fund', 'trade', 'forex',
+    'market', 'win', 'accountant', 'credit', 'cheap', 'discount', 'sale',
+    'vip', 'tk', 'ml', 'ga', 'cf', 'gq', 'quest',
+    'cyou', 'beauty', 'hair', 'skin', 'autos', 'boats', 'yachts',
+    'makeup', 'rest', 'cam', 'work', 'help', 'finance', 'world',
+    'mom', 'club', 'mobi', 'ink', 'fyi', 'garden', 'life',
+    'pics', 'lat', 'fit', 'bar', 'beer', 'bio', 'website',
+    'wiki', 'digital', 'homes', 'llc', 'guru', 'forum', 'business',
+    'network', 'qpon',
 ]
 
 
 shorteners = [
-    "simpleurl.tech", "sor.bz", "bit.ly", "bitly.kr", "bl.ink", "buff.ly",
-    "cutt.ly", "dub.co", "fox.ly", "gg.gg", "han.gl", "kurzelinks.de",
-    "kutt.it", "linkhuddle.com", "linksplit.io", "lstu.fr", "bli.nk", 
-    "oe.cd", "ow.ly", "rebrandly.com", "reduced.to", "rip.to", 
-    "san.aq", "short.io", "lyn.bz", "shorturl.at", "x.gd",
-    "smallseotools.com", "spoo.me", "switchy.io", "t2m.io",
-    "tinu.be", "tinyurl.com", "t.ly", "urlr.me", "v.gd",
-    "vo.la", "yaso.su", "zlnk.com", "rb.gy","tiny.cc",
-    "rebrand.ly", "s.id", "tiny.one","n9.cl", "ln.run","is.gd","bc.vc",
-    "u.to","xso.to"
-    
+    'simpleurl.tech', 'sor.bz', 'bit.ly', 'bitly.kr', 'j.mp', 'bl.ink',
+    'cutt.ly', 'cutt.us', 'dub.co', 'fox.ly', 'gg.gg', 'han.gl',
+    'kurzelinks.de', 'kutt.it', 'linkhuddle.com', 'linksplit.io',
+    'lstu.fr', 'bli.nk', 'rebrand.ly', 'rebrandly.com', 'reduced.to',
+    'rip.to', 'short.io', 'short.gy', 'shorturl.at', 'shorturl.com',
+    'spoo.me', 'switchy.io', 't2m.io', 't.ly', 'tinu.be', 'tiny.cc',
+    'tiny.one', 'tiny.pl', 'tinyurl.com', 'urlr.me', 'urlzs.com',
+    'v.gd', 'vo.la', 'x.gd', 'xso.to', 'yaso.su', 'zlnk.com', 'rb.gy',
+    's.id', 'n9.cl', 'ln.run', 'is.gd', 'bc.vc', 'u.to', 'soo.gd',
+    'shorte.st', 'ouo.io', 'ouo.press', 'surl.li', 'bom.so', 'qrco.de',
+    'chilp.it', '1url.com'
 ]
+
 
 free_email_domains = [   
     'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'live.com',
@@ -40,25 +46,37 @@ free_email_domains = [
     '126.com', 'qq.com', 'foxmail.com', 'sina.com', 'sohu.com', 'naver.com', 
     'daum.net', 'hanmail.net', 'yahoo.co.jp', 'rediffmail.com', 'zoho.com',
     'zoho.eu', 'yopmail.com', 'mailinator.com', 'guerrillamail.com', 'sharklasers.com',
-    'gmrt.net', 'temp-mail.org', '10minutemail.com'
+    'temp-mail.org', '10minutemail.com','mail.tm', 'maildrop.cc', 'getnada.com',
+    'tempmail.com', 'tempail.com', 'emailondeck.com', 'mailnesia.com',
+    'dispostable.com', 'trashmail.com', 'moakt.com', 'mytemp.email',
+    'tempmailo.com', 'tempmail.plus','tempmail.net', 'mintemail.com',
+    'duck.com', 'simplelogin.com', 'anonaddy.com', 'addy.io','guerrillamail.info',
+    'guerrillamail.net','guerrillamail.org','spam4.me','throwam.com','emailfake.com',
+    'simplelogin.io'
 ]
 
 abusable_platform_domains = [
-    'neocities.org', '6te.net', 'jimdosite.com', 'framer.app', 'webflow.io',
-    'typedream.app', 'repl.co', 'webnode.page', 'epizy.com', 'onrender.com',
+    'neocities.org','jimdosite.com', 'framer.app', 'webflow.io',
+    'typedream.app', 'replit.app', 'webnode.page', 'onrender.com',
     'workers.dev', 'overblog.com', 'gitlab.io', 'wixsite.com', 'pages.dev',
-    'strikingly.com', 'webstarts.com', 'weebly.com', 'deno.dev', 'replit.co',
+    'strikingly.com', 'webstarts.com', 'weebly.com', 'deno.dev', 'replit.dev',
     'godaddysites.com', 'vercel.app', 'stan.store', 'tumblr.com', 'beacons.ai',
     'infinityfreeapp.com', 'byet.host', 'cloudflarepages.com', 'site123.me',
-    'carrd.co', 'netlify.app', 'blogspot.com', 'web.app', 'webcindario.com',
-    'linktr.ee', 'rf.gd', 'surge.sh', 'github.io', 'tiiny.app', 'framer.media',
+    'carrd.co', 'netlify.app', 'blogspot.com', 'web.app', 
+    'linktr.ee', 'surge.sh', 'github.io', 'tiiny.app', 'framer.media',
     'hatenablog.com', 'firebaseapp.com', 'azurewebsites.net', 'wordpress.com',
-    'appspot.com','plesk.page','swtest.ru','tmweb.ru', 'dnsduck.org',
-    'webadorsite.com', 'yolasite.com', 'hpage.com', 'lovable.app'
+    'appspot.com','plesk.page','tmweb.ru', 'dnsduck.org',
+    'webadorsite.com', 'yolasite.com', 'hpage.com', 'lovable.app',
+    'notion.site', 'canva.site', 'glitch.me', 'herokuapp.com',
+    'pythonanywhere.com', 'streamlit.app', 'fly.dev', 'railway.app',
+    'r2.dev', 'trycloudflare.com', 'ngrok-free.app', 'ngrok.io',
+    'localtunnel.me', 'gitbook.io', 'bio.link', 'solo.to', 'taplink.cc',
+    'lnk.bio', 'campsite.bio', 'about.me', 'allmylinks.com', 'linkin.bio',
+    'msha.ke', 'contactin.bio', 'direct.me', 'linkfly.to', 'linkr.bio'
 ]
 
 
-# Threshold for excessive suspicious subdomains: counts long (>2 chars), non-junk (≤40% digits), non-trivial labels
+# Threshold for excessive suspicious subdomains: counts non-trivial, non-digit-heavy labels (>2 characters)
 subdomain_threshold = 3
 
 # Shannon entropy threshold for flagging randomly generated domain/subdomain labels 
@@ -67,13 +85,13 @@ entropy_threshold = 4.0
 
 # Known benign/trivial subdomains to ignore when counting suspicious ones
 trivial_subdomains = [
-    "www", "m",
-    "mail", "webmail",
-    "cdn", "static", "assets",
-    "api", "app",
-    "dev", "staging", "test",
-    "blog", "shop",
-    "cpanel", "whm"
+    'www', 'm', 'mail', 'webmail', 'cdn', 'static', 'assets',
+    'api', 'dev', 'staging', 'stage', 'test', 'beta', 'uat',
+    'blog', 'shop', 'cpanel', 'whm', 'img', 'images', 'media',
+    'files', 'portal', 'help', 'support', 'docs', 'link', 'links',
+    'email', 'smtp', 'mx', 'tracking', 'track', 'ftp', 'mobile',
+    'origin', 'edge', 'cache', 'storage', 'download', 'uploads',
+    'status', 'proxy', 'git', 'ci', 'jenkins'
 ]
 
 # Threshold for suspicious URL path depth
