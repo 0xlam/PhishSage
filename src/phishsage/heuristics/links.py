@@ -194,7 +194,7 @@ class LinkHeuristics:
 
         parts = [p for p in sub.split(".") if p]
 
-        def junk(label: str) -> bool:
+        def digit_heavy(label: str) -> bool:
             if not label:
                 return True
             digit_ratio = sum(c.isdigit() for c in label) / len(label)
@@ -205,7 +205,7 @@ class LinkHeuristics:
             for p in parts
             if p.lower() not in self.config.TRIVIAL_SUBDOMAINS
             and len(p) > 2
-            and junk(p)
+            and not digit_heavy(p)
         ]
 
         flags = len(suspicious) >= threshold
