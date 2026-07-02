@@ -28,11 +28,14 @@ def _format_date(value) -> str:
     except (ValueError, TypeError):
         return str(value)
 
+
 def print_warning(message: str) -> None:
-    console.print(Panel(
-        Text(message, style="yellow"),
-        border_style="yellow",
-    ))
+    console.print(
+        Panel(
+            Text(message, style="yellow"),
+            border_style="yellow",
+        )
+    )
 
 
 def print_url_extraction(url_data):
@@ -72,6 +75,7 @@ def print_url_extraction(url_data):
             )
         )
 
+
 def print_vt_scan_links(vt_results):
     console.print()
     console.rule("[bold]VirusTotal scan — links[/bold]")
@@ -104,11 +108,13 @@ def print_vt_scan_links(vt_results):
         body.add_row("Status", status)
 
         if stats and isinstance(stats, dict):
-            body.add_row("Malicious",  Text(str(stats.get("malicious", 0)),  style="red"))
-            body.add_row("Suspicious", Text(str(stats.get("suspicious", 0)), style="yellow"))
+            body.add_row("Malicious", Text(str(stats.get("malicious", 0)), style="red"))
+            body.add_row(
+                "Suspicious", Text(str(stats.get("suspicious", 0)), style="yellow")
+            )
             body.add_row("Undetected", str(stats.get("undetected", 0)))
-            body.add_row("Harmless",   Text(str(stats.get("harmless", 0)),   style="green"))
-            body.add_row("Last scan",  _format_date(last_analysis_date))
+            body.add_row("Harmless", Text(str(stats.get("harmless", 0)), style="green"))
+            body.add_row("Last scan", _format_date(last_analysis_date))
             body.add_row("First seen", _format_date(first_submission_date))
         else:
             if status == "error":
@@ -131,6 +137,7 @@ def print_vt_scan_links(vt_results):
         f"[yellow]{total_errors} errors[/yellow]"
     )
 
+
 def print_redirect_chain(results):
     console.print()
     console.rule("[bold]Redirect chain analysis[/bold]")
@@ -142,11 +149,13 @@ def print_redirect_chain(results):
     for info in results:
         if "error" in info:
             error_count += 1
-            console.print(Panel(
-                Text(info["error"], style="red"),
-                title=Text(info["original_url"], style="cyan"),
-                border_style="red",
-            ))
+            console.print(
+                Panel(
+                    Text(info["error"], style="red"),
+                    title=Text(info["original_url"], style="cyan"),
+                    border_style="red",
+                )
+            )
             continue
 
         redirected = info.get("redirected", False)
@@ -159,9 +168,9 @@ def print_redirect_chain(results):
 
         body.add_row(
             "Redirected",
-            Text("Yes", style="yellow") if redirected else Text("No", style="green")
+            Text("Yes", style="yellow") if redirected else Text("No", style="green"),
         )
-        body.add_row("Count",        str(info.get("redirect_count", 0)))
+        body.add_row("Count", str(info.get("redirect_count", 0)))
         body.add_row("Final URL", Text(info.get("final_url") or "N/A", style="cyan"))
         body.add_row("Status codes", str(info.get("status_codes", [])))
 
@@ -173,11 +182,13 @@ def print_redirect_chain(results):
                 chain_text.append(f"{prefix}{step}\n", style="dim cyan")
             body.add_row("Chain", chain_text)
 
-        console.print(Panel(
-            body,
-            title=Text(info["original_url"], style="cyan"),
-            border_style="yellow" if redirected else "dim",
-        ))
+        console.print(
+            Panel(
+                body,
+                title=Text(info["original_url"], style="cyan"),
+                border_style="yellow" if redirected else "dim",
+            )
+        )
 
     console.print(
         f"[dim]Summary:[/dim] {total} analyzed · "
@@ -198,7 +209,6 @@ def print_link_heuristics(results: list) -> None:
         key=lambda r: bool(r.get("aggregated_flags")),
         reverse=True,
     )
-
 
     for idx, res in enumerate(sorted_results, 1):
         url = res.get("url", "N/A")
@@ -227,15 +237,19 @@ def print_link_heuristics(results: list) -> None:
 
         heuristics = res.get("heuristics", {})
         items = [
-            ("IP-based URL",         "ip_based"),
-            ("Suspicious TLD",       "suspicious_tld"),
+            ("IP-based URL", "ip_based"),
+            ("Suspicious TLD", "suspicious_tld"),
+            ("Embedded TLD", "embedded_tld"),
             ("Excessive subdomains", "excessive_subdomains"),
-            ("Shortened URL",        "shortened_url"),
-            ("Numeric domain",       "numeric_domain"),
-            ("Excessive path",       "excessive_path"),
-            ("Abusable platform",    "abusable_platform"),
-            ("High entropy",         "domain_entropy"),
+            ("Shortened URL", "shortened_url"),
+            ("Abusable platform", "abusable_platform"),
+            ("Hyphen abuse", "hyphen_abuse"),
+            ("Double hyphen", "double_hyphen_abuse"),
+            ("Excessive path", "excessive_path"),
+            ("Numeric domain", "numeric_domain"),
+            ("High entropy", "domain_entropy"),
         ]
+
         for label, key in items:
             h = heuristics.get(key, {})
             flagged = h.get("flags", False)
@@ -254,90 +268,138 @@ def print_link_heuristics(results: list) -> None:
         vt = enrichment.get("virustotal")
         if vt:
             meta = vt.get("meta", {})
-            stats = meta.get("stats") or {}
+            inspected = meta.get("inspected", {})
+            evidence = meta.get("evidence", {})
+            diagnostic = meta.get("diagnostic", {})
+            stats = evidence.get("stats") or {}
             vt_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
             vt_table.add_column("label", style="dim", width=14)
             vt_table.add_column("value")
-            vt_table.add_row("Status",     meta.get("status", "unknown"))
-            vt_table.add_row("Malicious",  Text(str(stats.get("malicious", 0)),  style="red"))
-            vt_table.add_row("Suspicious", Text(str(stats.get("suspicious", 0)), style="yellow"))
+            vt_table.add_row("Status", inspected.get("status", "unknown"))
+            vt_table.add_row(
+                "Malicious", Text(str(stats.get("malicious", 0)), style="red")
+            )
+            vt_table.add_row(
+                "Suspicious", Text(str(stats.get("suspicious", 0)), style="yellow")
+            )
             vt_table.add_row("Undetected", str(stats.get("undetected", 0)))
-            vt_table.add_row("Harmless",   Text(str(stats.get("harmless", 0)),   style="green"))
+            vt_table.add_row(
+                "Harmless", Text(str(stats.get("harmless", 0)), style="green")
+            )
+            if diagnostic.get("error"):
+                vt_table.add_row("Error", Text(diagnostic["error"], style="red"))
             if vt.get("flags"):
-                vt_table.add_row("Flags", Text(", ".join(vt.get("reasons", [])), style="red"))
-            panels.append(Panel(vt_table, title="[dim]virustotal[/dim]", border_style="dim"))
+                vt_table.add_row(
+                    "Flags", Text(", ".join(vt.get("reasons", [])), style="red")
+                )
+            panels.append(
+                Panel(vt_table, title="[dim]virustotal[/dim]", border_style="dim")
+            )
 
         domain_age = enrichment.get("domain_age")
         if domain_age:
             meta = domain_age.get("meta", {})
+            inspected = meta.get("inspected", {})
+            evidence = meta.get("evidence", {})
+            diagnostic = meta.get("diagnostic", {})
             age_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
             age_table.add_column("label", style="dim", width=14)
             age_table.add_column("value")
-            error = meta.get("error")
-            if error:
-                age_table.add_row("Error", Text(error, style="red"))
+            if diagnostic.get("error"):
+                age_table.add_row("Error", Text(diagnostic["error"], style="red"))
             else:
-                age = meta.get("age_days")
-                expiry = meta.get("expiry_days")
+                age = evidence.get("age_days")
+                expiry = evidence.get("expiry_days")
                 age_table.add_row(
                     "Age",
-                    Text(f"{age} days", style="yellow" if age and age < 180 else "default")
-                    if age is not None else Text("N/A", style="dim")
+                    (
+                        Text(
+                            f"{age} days",
+                            style="yellow" if age and age < 180 else "default",
+                        )
+                        if age is not None
+                        else Text("N/A", style="dim")
+                    ),
                 )
                 age_table.add_row(
                     "Expires in",
-                    Text(f"{expiry} days", style="yellow" if expiry and expiry < 30 else "default")
-                    if expiry is not None else Text("N/A", style="dim")
+                    (
+                        Text(
+                            f"{expiry} days",
+                            style="yellow" if expiry and expiry < 30 else "default",
+                        )
+                        if expiry is not None
+                        else Text("N/A", style="dim")
+                    ),
                 )
-                age_table.add_row("Registrar", str(meta.get("registrar") or "N/A"))
+                age_table.add_row("Registrar", str(inspected.get("registrar") or "N/A"))
             if domain_age.get("flags"):
-                age_table.add_row("Flags", Text(", ".join(domain_age.get("reasons", [])), style="red"))
-            panels.append(Panel(age_table, title="[dim]domain age[/dim]", border_style="dim"))
+                age_table.add_row(
+                    "Flags", Text(", ".join(domain_age.get("reasons", [])), style="red")
+                )
+            panels.append(
+                Panel(age_table, title="[dim]domain age[/dim]", border_style="dim")
+            )
 
         cert = enrichment.get("certificate")
         if cert:
             meta = cert.get("meta", {})
+            inspected = meta.get("inspected", {})
+            evidence = meta.get("evidence", {})
+            diagnostic = meta.get("diagnostic", {})
             cert_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
             cert_table.add_column("label", style="dim", width=16)
             cert_table.add_column("value")
-            error = meta.get("error")
-            if error:
-                cert_table.add_row("Error", Text(error, style="red"))
+            if diagnostic.get("error"):
+                cert_table.add_row("Error", Text(diagnostic["error"], style="red"))
             else:
-                for label, key in [
-                    ("Issuer",            "issuer"),
-                    ("Subject",           "subject"),
-                    ("Valid from",        "valid_from"),
-                    ("Valid to",          "valid_to"),
-                    ("Days issued",       "days_since_issued"),
-                    ("Days to expiry",    "days_until_expiry"),
+                for label, src, key in [
+                    ("Issuer", inspected, "issuer"),
+                    ("Subject", inspected, "subject"),
+                    ("Valid from", inspected, "valid_from"),
+                    ("Valid to", inspected, "valid_to"),
+                    ("Days issued", evidence, "days_since_issued"),
+                    ("Days to expiry", evidence, "days_until_expiry"),
                 ]:
-                    val = meta.get(key)
+                    val = src.get(key)
                     if val is not None:
                         cert_table.add_row(label, str(val))
             if cert.get("flags"):
-                cert_table.add_row("Flags", Text(", ".join(cert.get("reasons", [])), style="red"))
-            panels.append(Panel(cert_table, title="[dim]certificate[/dim]", border_style="dim"))
+                cert_table.add_row(
+                    "Flags", Text(", ".join(cert.get("reasons", [])), style="red")
+                )
+            panels.append(
+                Panel(cert_table, title="[dim]certificate[/dim]", border_style="dim")
+            )
 
         redirect = enrichment.get("redirect_chain")
         if redirect:
             meta = redirect.get("meta", {})
+            inspected = meta.get("inspected", {})
+            evidence = meta.get("evidence", {})
+            diagnostic = meta.get("diagnostic", {})
             r_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
             r_table.add_column("label", style="dim", width=14)
             r_table.add_column("value")
-            error = meta.get("error")
-            if error:
-                r_table.add_row("Error", Text(error, style="red"))
+            if diagnostic.get("error"):
+                r_table.add_row("Error", Text(diagnostic["error"], style="red"))
             else:
-                redirected = meta.get("redirected", False)
-                count = meta.get("redirect_count", 0)
+                count = evidence.get("redirect_count", 0)
+                redirected = count > 0
                 r_table.add_row(
                     "Redirected",
-                    Text("Yes", style="yellow") if redirected else Text("No", style="green")
+                    (
+                        Text("Yes", style="yellow")
+                        if redirected
+                        else Text("No", style="green")
+                    ),
                 )
-                r_table.add_row("Count",     str(count))
-                r_table.add_row("Final URL", Text(str(meta.get("final_url", "N/A")), style="cyan"))
-                chain = meta.get("redirect_chain", [])
+                r_table.add_row("Count", str(count))
+                r_table.add_row(
+                    "Final URL",
+                    Text(str(inspected.get("final_url", "N/A")), style="cyan"),
+                )
+                chain = evidence.get("redirect_chain", [])
                 if chain:
                     chain_text = Text()
                     for i, step in enumerate(chain):
@@ -345,22 +407,34 @@ def print_link_heuristics(results: list) -> None:
                         chain_text.append(f"{prefix}{step}\n", style="dim cyan")
                     r_table.add_row("Chain", chain_text)
             if redirect.get("flags"):
-                r_table.add_row("Flags", Text(", ".join(redirect.get("reasons", [])), style="red"))
-            panels.append(Panel(r_table, title="[dim]redirects[/dim]", border_style="dim"))
+                r_table.add_row(
+                    "Flags", Text(", ".join(redirect.get("reasons", [])), style="red")
+                )
+            panels.append(
+                Panel(r_table, title="[dim]redirects[/dim]", border_style="dim")
+            )
 
         # aggregated flags banner
         if agg_flags:
             flag_text = Text("  ".join(agg_flags), style="bold red")
-            flags_panel = Panel(flag_text, title="[red]aggregated flags[/red]", border_style="red")
+            flags_panel = Panel(
+                flag_text, title="[red]aggregated flags[/red]", border_style="red"
+            )
         else:
-            flags_panel = Panel(Text("No flags", style="green"), title="[green]result[/green]", border_style="green")
+            flags_panel = Panel(
+                Text("No flags", style="green"),
+                title="[green]result[/green]",
+                border_style="green",
+            )
 
-        console.print(Panel(
-            Columns(panels, equal=False, expand=True),
-            title=title,
-            subtitle=flags_panel.renderable if not is_flagged else None,
-            border_style="red" if is_flagged else "green",
-        ))
+        console.print(
+            Panel(
+                Columns(panels, equal=False, expand=True),
+                title=title,
+                subtitle=flags_panel.renderable if not is_flagged else None,
+                border_style="red" if is_flagged else "green",
+            )
+        )
 
         if is_flagged:
             console.print(flags_panel)

@@ -44,8 +44,10 @@ SHORTENERS = set(HEURISTICS.get("shorteners", []))
 FREE_EMAIL_DOMAINS = set(HEURISTICS.get("free_email_domains", []))
 TRIVIAL_SUBDOMAINS = set(HEURISTICS.get("trivial_subdomains", []))
 ABUSABLE_PLATFORM_DOMAINS = set(HEURISTICS.get("abusable_platform_domains", []))
+COMMON_TLDS = set(HEURISTICS.get("common_tlds", []))
 
 
+HYPHEN_THRESHOLD = HEURISTICS.get("hyphen_threshold", 4)
 SUBDOMAIN_THRESHOLD = HEURISTICS.get("subdomain_threshold", 3)
 ENTROPY_THRESHOLD = HEURISTICS.get("entropy_threshold", 4)
 MAX_PATH_DEPTH = HEURISTICS.get("max_path_depth", 4)

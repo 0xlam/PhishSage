@@ -94,6 +94,10 @@ trivial_subdomains = [
     'status', 'proxy', 'git', 'ci', 'jenkins'
 ]
 
+# TLD strings users visually trust, checked for embedded decoys (e.g. paypal.com-login.xyz)
+common_tlds = ['com', 'net', 'org', 'gov', 'edu', 'mil', 'io']
+
+
 # Threshold for suspicious URL path depth
 max_path_depth = 4
 
@@ -109,6 +113,9 @@ threshold_young = 30      # Domains younger than this are considered "young" and
 
 threshold_expiring = 10  # Domains expiring in fewer than this many days are flagged as expiring soon
 
+
+# Flag domain/subdomain labels with this many or more hyphens
+hyphen_threshold = 4
 
 # -----------------------------------------
 # Certificate Analysis Thresholds

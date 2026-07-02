@@ -8,8 +8,10 @@ from phishsage.config.schemas import LinkHeuristicConfig
 from phishsage.config.loader import (
     ABUSABLE_PLATFORM_DOMAINS,
     CERT_RECENT_ISSUE_DAYS_THRESHOLD,
+    COMMON_TLDS,
     SSL_DEFAULT_PORT,
     ENTROPY_THRESHOLD,
+    HYPHEN_THRESHOLD,
     MAX_PATH_DEPTH,
     MAX_REDIRECTS,
     SHORTENERS,
@@ -30,10 +32,12 @@ def _build_config() -> LinkHeuristicConfig:
         THRESHOLD_YOUNG=THRESHOLD_YOUNG,
         THRESHOLD_EXPIRING=THRESHOLD_EXPIRING,
         CERT_RECENT_ISSUE_DAYS_THRESHOLD=CERT_RECENT_ISSUE_DAYS_THRESHOLD,
+        HYPHEN_THRESHOLD=HYPHEN_THRESHOLD,
         SUSPICIOUS_TLDS=SUSPICIOUS_TLDS,
         SHORTENERS=SHORTENERS,
         ABUSABLE_PLATFORM_DOMAINS=ABUSABLE_PLATFORM_DOMAINS,
         TRIVIAL_SUBDOMAINS=TRIVIAL_SUBDOMAINS,
+        COMMON_TLDS=COMMON_TLDS,
     )
 
 
@@ -45,11 +49,13 @@ def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuri
 
     if "virustotal" in enrich or "all" in enrich:
         from phishsage.services.virustotal import VirusTotalService
+
         vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
         vt_lookup = partial(vt_service.lookup_url, cache=cache)
 
     if "domain_age" in enrich or "all" in enrich:
         from phishsage.services.whois import WhoisService
+
         whois_lookup = partial(WhoisService().lookup, cache=cache)
 
     if redirect_service and ("redirects" in enrich or "all" in enrich):
@@ -57,6 +63,7 @@ def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuri
 
     if "certificate" in enrich or "all" in enrich:
         from phishsage.services.cert_checker import SSLService
+
         ssl_fetcher = partial(SSLService(port=SSL_DEFAULT_PORT).fetch, cache=cache)
 
     return LinkHeuristics(
@@ -71,23 +78,24 @@ def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuri
 
 async def _vt_scan(web_urls, cache):
     from phishsage.services.virustotal import VirusTotalService
+
     vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
     analyzer = LinkHeuristics(
         config=None, vt_lookup=partial(vt_service.lookup_url, cache=cache)
     )
-
     tasks = [analyzer.scan_virustotal(parse_url(url)) for url in web_urls]
     vt_results = await asyncio.gather(*tasks)
 
     vt_dict = {}
 
     for url, result in zip(web_urls, vt_results):
-        stats = result.meta.get("stats") or {}
+        inspected = result.meta.get("inspected") or {}
+        evidence = result.meta.get("evidence") or {}
         vt_dict[url] = {
-            "status": result.meta.get("status"),
-            "stats": stats,
-            "last_analysis_date": result.meta.get("last_analysis_date"),
-            "first_submission_date": result.meta.get("first_submission_date"),
+            "status": inspected.get("status"),
+            "stats": evidence.get("stats") or {},
+            "last_analysis_date": inspected.get("last_analysis_date"),
+            "first_submission_date": inspected.get("first_submission_date"),
         }
 
     return vt_dict
@@ -95,6 +103,7 @@ async def _vt_scan(web_urls, cache):
 
 async def _follow_redirects(web_urls, cache):
     from phishsage.services.redirect import RedirectService
+
     async with aiohttp.ClientSession() as session:
         redirect_service = RedirectService(session=session, max_redirects=MAX_REDIRECTS)
 
@@ -117,27 +126,31 @@ async def _follow_redirects(web_urls, cache):
             )
             continue
 
-        meta = result.meta
-        final_url = meta.get("final_url")
-        status_codes = meta.get("status_codes", [])
+        inspected = result.meta.get("inspected") or {}
+        evidence = result.meta.get("evidence") or {}
+        diagnostic = result.meta.get("diagnostic") or {}
 
-        if not final_url and not status_codes:
+        original_url = inspected.get("normalized_url", url)
+        final_url = inspected.get("final_url")
+        status_codes = evidence.get("status_codes", [])
+
+        if diagnostic or (not final_url and not status_codes):
             redirect_results.append(
                 {
-                    "original_url": meta.get("original_url", url),
-                    "error": "request_failed",
+                    "original_url": original_url,
+                    "error": diagnostic.get("error", "request_failed"),
                 }
             )
             continue
 
         redirect_results.append(
             {
-                "original_url": meta.get("original_url", url),
-                "final_url": meta.get("final_url"),
-                "redirected": meta.get("redirected", False),
-                "redirect_count": meta.get("redirect_count", 0),
-                "status_codes": meta.get("status_codes", []),
-                "redirect_chain": meta.get("redirect_chain", []),
+                "original_url": original_url,
+                "final_url": final_url,
+                "redirected": bool(evidence.get("redirect_count", 0) > 0),
+                "redirect_count": evidence.get("redirect_count", 0),
+                "status_codes": status_codes,
+                "redirect_chain": evidence.get("redirect_chain", []),
             }
         )
 
@@ -152,6 +165,7 @@ async def _run_heuristics(web_urls, enrich, cache):
     try:
         if "redirects" in enrich or "all" in enrich:
             from phishsage.services.redirect import RedirectService
+
             session = aiohttp.ClientSession()
             redirect_service = RedirectService(
                 session=session, max_redirects=MAX_REDIRECTS
