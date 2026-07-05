@@ -15,7 +15,7 @@ PhishSage covers three analysis surfaces, each a CLI subcommand:
 
 **`headers`** — SPF/DKIM/DMARC extraction and alignment checks, Reply-To/Return-Path anomalies, Message-ID domain validation, free-provider detection, timestamp drift between `Date` and `Received`, optional MX record lookup, Spamhaus DBL query, and WHOIS domain-age flagging.
 
-**`links`** — URL extraction from body and headers, raw-IP URL detection, suspicious/uncommon TLD flagging, subdomain depth and entropy scoring (detects randomly generated domains), shortened-URL detection, free hosting platform detection, SSL/TLS certificate inspection, WHOIS domain age, VirusTotal URL lookup, redirect-chain tracing, and path-depth analysis.
+**`links`** — URL extraction from body and headers, raw-IP URL detection, suspicious/uncommon TLD flagging, subdomain depth and entropy scoring (detects randomly generated domains), shortened-URL detection, free hosting platform detection, SSL/TLS certificate inspection, WHOIS domain age, VirusTotal URL lookup, redirect-chain tracing, path-depth analysis, hyphen-abuse detection, and embedded fake-TLD detection.
 
 **`attachments`** — Listing with MIME type and size, safe attachment extraction, MD5/SHA1/SHA256 hashing, VirusTotal hash lookup, and YARA rule scanning with optional verbose string/offset output.
 
@@ -200,6 +200,7 @@ Without `--json`, PhishSage renders Rich terminal output with color-coded alerts
 
 | Key | Default | Purpose |
 |-----|---------|---------|
+| `hyphen_threshold` | `4` | Max hyphens in hostname before flagging hyphen abuse |
 | `threshold_young` | `30` days | Flag newly registered domains |
 | `threshold_expiring` | `10` days | Flag soon-to-expire domains |
 | `entropy_threshold` | `4.0` | Entropy cutoff for flagging randomly generated domain labels |
