@@ -241,7 +241,7 @@ class LinkHeuristics:
 
         if not hostname:
             return LinkHeuristicResult(
-                name="ip_url", flags=True, reasons=["no_hostname"], meta=make_meta()
+                name="ip_url", flags=False, reasons=["missing_hostname"], meta=make_meta()
             )
 
         try:
