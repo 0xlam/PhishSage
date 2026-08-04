@@ -8,7 +8,6 @@ class VirusTotalStats:
     suspicious: int = 0
     harmless: int = 0
     undetected: int = 0
-    timeout: int = 0
 
 
 @dataclass(frozen=True)

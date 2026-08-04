@@ -5,6 +5,7 @@ import hashlib
 import mimetypes
 from typing import Dict, Any, Optional
 
+
 try:
     import magic
 except ImportError as exc:
@@ -16,8 +17,6 @@ except ImportError as exc:
 
 class AttachmentProcessor:
     """
-    Processes email attachments safely and efficiently.
-
     Provides utilities to:
         • Parse and cache attachments from a mail object
         • Detect true MIME types (not trusting extensions)
@@ -31,15 +30,6 @@ class AttachmentProcessor:
 
         Invalid or corrupted attachments are skipped, not fatal.
     """
-
-    VT_ZERO_FIELDS = {
-        "timeout",
-        "confirmed-timeout",
-        "failure",
-        "type-unsupported",
-        "resource",
-        "error",
-    }
 
     def __init__(
         self,

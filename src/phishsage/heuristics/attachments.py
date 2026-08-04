@@ -3,16 +3,8 @@ import hashlib
 from typing import Dict, Any, Optional
 
 
-class AttachmentHeuristics:
 
-    VT_ZERO_FIELDS = {
-        "timeout",
-        "confirmed-timeout",
-        "failure",
-        "type-unsupported",
-        "resource",
-        "error",
-    }
+class AttachmentHeuristics:
 
     def __init__(self, processor, vt_client=None, yara_engine=None, yara_verbose=False):
         self.processor = processor
@@ -97,7 +89,6 @@ class AttachmentHeuristics:
                 raw = vt.stats.__dict__
                 stats = {
                     k: v for k, v in raw.items()
-                    if k not in self.VT_ZERO_FIELDS
                 }
 
             results[fname] = {

@@ -71,7 +71,6 @@ class VirusTotalService:
                     suspicious=raw_stats.get("suspicious", 0),
                     harmless=raw_stats.get("harmless", 0),
                     undetected=raw_stats.get("undetected", 0),
-                    timeout=raw_stats.get("timeout", 0),
                 )
                 return VirusTotalResult(
                     status="ok",
