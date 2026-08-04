@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 @dataclass(frozen=True)
 class LinkHeuristicResult:
     name: str
-    flags: str
+    flags: bool
     reasons: List[str]
     meta: Dict[str, Any]
 
