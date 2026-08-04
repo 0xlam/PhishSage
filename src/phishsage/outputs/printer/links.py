@@ -29,15 +29,6 @@ def _format_date(value) -> str:
         return str(value)
 
 
-def print_warning(message: str) -> None:
-    console.print(
-        Panel(
-            Text(message, style="yellow"),
-            border_style="yellow",
-        )
-    )
-
-
 def print_url_extraction(url_data):
     links = url_data.get("web", [])
     non_web = url_data.get("non_web", [])

@@ -6,7 +6,6 @@ from phishsage.utils import (
     get_domain,
     extract_email,
     generate_email_id,
-    extract_display_name,
 )
 from .dirty_parser import dirty_extract_email
 from .ip_extractor import extract_sender_ip
@@ -48,7 +47,6 @@ def extract_mail_headers(mail: Any, raw_mail_bytes: Any) -> EmailHeaderContext:
     from_address = normalize_header_value(headers.get("From", ""))
     from_email = extract_email(from_address) or dirty_extract_email(raw_mail_bytes)
     from_domain = get_domain(from_email or "")
-    display_name = extract_display_name(from_address)
 
     # --- TO / CC / BCC ---
     to_email = parse_recipients(headers.get("To"))
@@ -105,7 +103,6 @@ def extract_mail_headers(mail: Any, raw_mail_bytes: Any) -> EmailHeaderContext:
     mail_id = generate_email_id(message_id, raw_mail_bytes, length=8)
 
     return EmailHeaderContext(
-        display_name=display_name,
         from_address=from_address,
         from_email=from_email,
         from_domain=from_domain,

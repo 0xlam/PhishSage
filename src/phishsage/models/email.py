@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 @dataclass
 class EmailHeaderContext:
-    display_name: str
     from_address: str
     from_email: str
     from_domain: str

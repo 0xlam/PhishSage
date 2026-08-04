@@ -6,7 +6,6 @@ from .header_helpers import (
     get_domain,
     extract_email,
     generate_email_id,
-    extract_display_name,
 )
 
 __all__ = [
@@ -17,5 +16,4 @@ __all__ = [
     "get_domain",
     "extract_email",
     "generate_email_id",
-    "extract_display_name",
 ]
