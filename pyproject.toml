@@ -31,7 +31,6 @@ dependencies = [
     "beautifulsoup4>=4.12,<5",
     "tldextract>=5.0,<6",
     "python-dateutil>=2.9,<3",
-    "python-dotenv>=1.0,<2",
     "python-whois>=0.9,<1",
     "email_validator>=2.0,<3",
     "idna>=3.6,<4",
