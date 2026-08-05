@@ -103,12 +103,6 @@ def is_domain_match(parent_domain, child_domain):
     return parent_sld == child_sld
 
 
-def extract_display_name(raw_from):
-    """
-    Extract a display name from an email From header.
-    """
-
-
 def generate_email_id(msg_id, raw_mail_bytes, length=8):
     """Generate a short deterministic email ID."""
     if msg_id:
