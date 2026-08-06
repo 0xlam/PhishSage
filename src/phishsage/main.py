@@ -124,27 +124,14 @@ def process_file(filepath, args, cache):
     try:
         with open(filepath, "rb") as f:
             raw_mail_bytes = f.read()
-    except Exception as e:
-        return {"error": f"Failed to read: {e}"}
 
-    try:
         parsed_mail = mailparser.parse_from_bytes(raw_mail_bytes)
+        mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
+
+        return asyncio.run(run(args, parsed_mail, mail_headers, cache=cache))
+
     except Exception as e:
-        return {"error": f"Failed to parse: {e}"}
-
-    mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
-
-    return asyncio.run(run(args, parsed_mail, mail_headers, cache=cache))
-
-
-def write_results(args, results):
-    if args.json:
-        writer = OutputWriter(args.output, default_serializer=default_serializer)
-        writer.save(results)
-        return
-
-    for filepath, output in results.items():
-        print_rich_output(args, filepath, output)
+        return {"error": f"Failed to process: {e}"}
 
 
 async def run(args, mail, mail_headers, cache=None):
@@ -176,19 +163,24 @@ def main():
     args.file = deduplicate_files(args.file)
 
     cache = initialize_cache(args)
-    results = {}
 
-    for filepath in args.file:
-        try:
-            results[filepath] = process_file(
-                filepath=filepath,
-                args=args,
-                cache=cache,
-            )
-        except Exception as e:
-            results[filepath] = {"error": f"Failed to process: {e}"}
+    writer = (
+        OutputWriter(args.output, default_serializer=default_serializer)
+        if args.json
+        else None
+    )
 
-    write_results(args, results)
+    try:
+        for filepath in args.file:
+            output = process_file(filepath, args, cache)
+
+            if args.json:
+                writer.write(filepath, output)
+            else:
+                print_rich_output(args, filepath, output)
+    finally:
+        if writer:
+            writer.close()
 
 
 if __name__ == "__main__":
