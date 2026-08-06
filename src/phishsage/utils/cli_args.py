@@ -17,14 +17,14 @@ def get_parser():
     common.add_argument(
         "-o",
         "--output",
-        metavar="FILE",
-        help="Save JSON results to file (use with --json)",
+        metavar="FILE.jsonl",
+        help="Save results to file, one JSON object per line (JSONL)",
     )
 
     common.add_argument(
         "--json",
         action="store_true",
-        help="Output results in JSON format",
+        help="Output results in JSON Lines format",
     )
 
     common.add_argument(

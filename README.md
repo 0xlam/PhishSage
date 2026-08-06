@@ -97,7 +97,7 @@ Cache TTLs are configured in `config.toml`.
 phishsage headers -f email.eml
 
 # Full heuristics + all enrichment, save JSON
-phishsage headers -f email.eml --heuristics --enrich all --json -o results.json
+phishsage headers -f email.eml --heuristics --enrich all --json -o results.jsonl
 
 # Selective enrichment
 phishsage headers -f email.eml --heuristics --enrich mx spamhaus
@@ -143,7 +143,7 @@ phishsage attachments -f email.eml --extract ./output/
 Pass multiple files in one run:
 
 ```bash
-phishsage headers -f mail1.eml mail2.eml mail3.eml --heuristics --json -o batch.json
+phishsage headers -f mail1.eml mail2.eml mail3.eml --heuristics --json -o batch.jsonl
 ```
 
 ---
@@ -151,9 +151,9 @@ phishsage headers -f mail1.eml mail2.eml mail3.eml --heuristics --json -o batch.
 ## Example Workflow
 
 ```bash
-phishsage headers -f examples/sample-phish.eml --heuristics --enrich all --json -o reports/headers.json
-phishsage links -f examples/sample-phish.eml --heuristics --enrich all --cache --json -o reports/links.json
-phishsage attachments -f examples/sample-phish.eml --list --hash --json -o reports/attachments.json
+phishsage headers -f examples/sample-phish.eml --heuristics --enrich all --json -o reports/headers.jsonl
+phishsage links -f examples/sample-phish.eml --heuristics --enrich all --cache --json -o reports/links.jsonl
+phishsage attachments -f examples/sample-phish.eml --list --hash --json -o reports/attachments.jsonl
 ```
 
 Run all three subcommands on the same email for full coverage. Use `--cache` when scanning multiple emails to avoid redundant external lookups.
