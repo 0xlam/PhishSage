@@ -82,11 +82,15 @@ def print_rich_output(args, filepath, output):
 
 
 def validate_args(args, parser):
+    if args.mode in ("headers", "links") and args.enrich == []:
+        args.enrich = ["all"]
+
     if args.mode in ("headers", "links"):
         if args.enrich and not args.heuristics:
             parser.error("--enrich requires --heuristics")
-        if args.enrich == []:
-            args.enrich = ["all"]
+
+    if args.mode == "headers" and not args.heuristics:
+        parser.error("--heuristics is required for headers mode")
 
     if args.output and not args.json:
         parser.error("--output requires --json")

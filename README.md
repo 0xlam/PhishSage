@@ -93,9 +93,6 @@ Cache TTLs are configured in `config.toml`.
 ### Header analysis
 
 ```bash
-# Basic parse
-phishsage headers -f email.eml
-
 # Full heuristics + all enrichment, save JSON
 phishsage headers -f email.eml --heuristics --enrich all --json -o results.jsonl
 
