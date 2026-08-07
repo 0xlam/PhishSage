@@ -3,7 +3,6 @@ import hashlib
 from typing import Dict, Any, Optional
 
 
-
 class AttachmentHeuristics:
 
     def __init__(self, processor, vt_client=None, yara_engine=None, yara_verbose=False):
@@ -34,7 +33,6 @@ class AttachmentHeuristics:
             "attachments": items,
             "summary": {
                 "total": len(items),
-                "scanned": len(items),
                 "errors": errors,
             },
         }
@@ -50,9 +48,7 @@ class AttachmentHeuristics:
             return self._wrap({}, errors=["no_attachments"])
 
         results = {}
-        errors = []
 
-        
         if not self.vt_client:
             for fname, meta in attachments.items():
                 results[fname] = self._vt_unavailable(meta)
@@ -60,17 +56,18 @@ class AttachmentHeuristics:
 
         fnames = list(attachments.keys())
         tasks = []
+        sha256_by_fname = {}
 
         for fname in fnames:
             meta = attachments[fname]
             sha256 = hashlib.sha256(meta["file_bytes"]).hexdigest()
+            sha256_by_fname[fname] = sha256
             tasks.append(self.vt_client(sha256))
 
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
         for fname, vt in zip(fnames, responses):
-            meta = attachments[fname]
-            sha256 = hashlib.sha256(meta["file_bytes"]).hexdigest()
+            sha256 = sha256_by_fname[fname]
 
             if isinstance(vt, Exception):
                 results[fname] = {
@@ -85,10 +82,12 @@ class AttachmentHeuristics:
                 continue
 
             stats = {}
-            if vt.status == "ok" and vt.stats:
-                raw = vt.stats.__dict__
+            if vt.status == "ok" and vt.stats is not None:
                 stats = {
-                    k: v for k, v in raw.items()
+                    "malicious": vt.stats.malicious,
+                    "suspicious": vt.stats.suspicious,
+                    "harmless": vt.stats.harmless,
+                    "undetected": vt.stats.undetected,
                 }
 
             results[fname] = {
@@ -99,7 +98,9 @@ class AttachmentHeuristics:
                     "stats": {
                         "last_analysis_stats": stats,
                         "last_analysis_date": getattr(vt, "last_analysis_date", None),
-                        "first_submission_date": getattr(vt, "first_submission_date", None),
+                        "first_submission_date": getattr(
+                            vt, "first_submission_date", None
+                        ),
                     },
                 },
             }
@@ -128,9 +129,7 @@ class AttachmentHeuristics:
             return self._wrap({}, errors=["no_attachments"])
 
         results = {}
-        errors = []
 
-        
         if self.yara_engine is None:
             for fname in attachments:
                 results[fname] = {
@@ -169,11 +168,13 @@ class AttachmentHeuristics:
                         strings = []
                         for s in match.strings:
                             for inst in s.instances:
-                                strings.append({
-                                    "name": s.identifier,
-                                    "offset": hex(inst.offset),
-                                    "data": inst.matched_data.hex(),
-                                })
+                                strings.append(
+                                    {
+                                        "name": s.identifier,
+                                        "offset": hex(inst.offset),
+                                        "data": inst.matched_data.hex(),
+                                    }
+                                )
 
                         match_dict["strings"] = strings
 

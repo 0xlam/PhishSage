@@ -83,19 +83,16 @@ class VirusTotalService:
             err_code = (
                 (getattr(e, "code", "") or "").lower().replace("error", "").strip("_")
             )
-            if err_code == "notfound":
-                return VirusTotalResult(
-                    status="not_found", resource=resource, stats=None, error=str(e)
-                )
-            elif err_code in ("authenticationrequired", "forbidden"):
-                return VirusTotalResult(
-                    status="auth_error", resource=resource, stats=None, error=str(e)
-                )
-            elif err_code in ("quotaexceeded", "ratelimit"):
-                return VirusTotalResult(
-                    status="rate_limited", resource=resource, stats=None, error=str(e)
-                )
-            else:
-                return VirusTotalResult(
-                    status="error", resource=resource, stats=None, error=str(e)
-                )
+
+            _ERROR_STATUS_MAP = {
+                "notfound": "not_found",
+                "authenticationrequired": "auth_error",
+                "forbidden": "auth_error",
+                "quotaexceeded": "rate_limited",
+                "ratelimit": "rate_limited",
+            }
+
+            status = _ERROR_STATUS_MAP.get(err_code, "error")
+            return VirusTotalResult(
+                status=status, resource=resource, stats=None, error=str(e)
+            )

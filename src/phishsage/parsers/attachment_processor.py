@@ -5,7 +5,6 @@ import hashlib
 import mimetypes
 from typing import Dict, Any, Optional
 
-
 try:
     import magic
 except ImportError as exc:
@@ -16,20 +15,6 @@ except ImportError as exc:
 
 
 class AttachmentProcessor:
-    """
-    Provides utilities to:
-        • Parse and cache attachments from a mail object
-        • Detect true MIME types (not trusting extensions)
-        • List attachment metadata
-        • Extract files to disk with safe naming
-        • Generate MD5, SHA1, and SHA256 hashes
-
-        Parsing is lazy by default and results are cached to avoid
-        repeated  decoding. You can force immediate parsing using
-        `force_parse()` after initialization.
-
-        Invalid or corrupted attachments are skipped, not fatal.
-    """
 
     def __init__(
         self,
@@ -44,14 +29,14 @@ class AttachmentProcessor:
 
     # ---------------------Parsing -----------------------------
     def force_parse(self):
-        """Force-parse all attachments now and return parsed attachments."""
-        self._ensure_parsed()
-        return self._parsed_cache 
+        return self._ensure_parsed()
+
 
     def _ensure_parsed(self) -> Dict[str, Dict[str, Any]]:
         if self._parsed_cache is None:
             self._parsed_cache = self._parse_all()
         return self._parsed_cache
+
 
     def _parse_all(self) -> Dict[str, Dict[str, Any]]:
         parsed_attachments = {}
@@ -65,6 +50,7 @@ class AttachmentProcessor:
             parsed_attachments[parsed["filename"]] = parsed
 
         return parsed_attachments
+
 
     def _parse_single(self, attachment: Dict[str, Any]) -> Dict[str, Any]:
         filename = self._safe_filename(attachment.get("filename", "unnamed"))
@@ -96,17 +82,15 @@ class AttachmentProcessor:
 
     def list(self):
         parsed = self._ensure_parsed()
-        summary = {}
-
-        for filename, parsed_data in parsed.items():
-            summary[filename] = {
-                "size_human": parsed_data.get("size_human"),
-                "mime_type": parsed_data.get("mime_type"),
-                "extension": parsed_data.get("extension"),
-                "detected_ext": parsed_data.get("detected_ext"),
+        return {
+            filename : {
+                "size_human": d.get("size_human"),
+                "mime_type": d.get("mime_type"),
+                "extension": d.get("extension"),
+                "detected_ext": d.get("detected_ext"),
             }
-
-        return summary
+            for filename, d in parsed.items()
+        }
 
     def extract(self, save_dir: Optional[str] = None, save_files: bool = True):
         parsed = self._ensure_parsed()
@@ -135,18 +119,14 @@ class AttachmentProcessor:
 
     def hash(self):
         parsed = self._ensure_parsed()
-        hashed = {}
-
-        for filename, parsed_data in parsed.items():
-            file_bytes = parsed_data["file_bytes"]
-
-            hashed[filename] = {
-                "md5": hashlib.md5(file_bytes).hexdigest(),
-                "sha1": hashlib.sha1(file_bytes).hexdigest(),
-                "sha256": hashlib.sha256(file_bytes).hexdigest(),
+        return { 
+            filename: {
+                "md5": hashlib.md5(d["file_bytes"]).hexdigest(),
+                "sha1": hashlib.sha1(d["file_bytes"]).hexdigest(),
+                "sha256": hashlib.sha256(d["file_bytes"]).hexdigest(),
             }
-
-        return hashed
+            for filename, d in parsed.items()
+        }
 
     # -------------------- Utilities -----------------------------
 
