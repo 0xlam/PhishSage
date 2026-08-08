@@ -1,3 +1,4 @@
+from os.path import abspath
 import asyncio
 import mailparser
 from datetime import datetime
@@ -100,19 +101,21 @@ def validate_args(args, parser):
 
 
 def deduplicate_files(files):
+    absolute_paths = [abspath(f) for f in files ]
+
     seen = set()
     duplicates = []
 
-    for path in files:
+    for path in absolute_paths:
         if path in seen:
             duplicates.append(path)
         else:
             seen.add(path)
 
     if duplicates:
-        print_warning(f"Duplicate files removed: {duplicates}")
+        print_warning(f"Duplicate files removed: {list(dict.fromkeys(duplicates))}")
 
-    return list(dict.fromkeys(files))
+    return list(dict.fromkeys(absolute_paths))
 
 
 def initialize_cache(args):
