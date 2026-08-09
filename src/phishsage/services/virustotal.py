@@ -10,7 +10,7 @@ import dataclasses
 from phishsage.models.virustotal import VirusTotalResult, VirusTotalStats
 from phishsage.config.loader import CACHE_TTL_VT
 
-_SKIP_CACHE = {"auth_error", "rate_limited"}
+_SKIP_CACHE = {"auth_error", "rate_limited", "not_found"}
 
 
 class VirusTotalService:
