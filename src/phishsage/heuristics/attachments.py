@@ -50,27 +50,29 @@ class AttachmentHeuristics:
         results = {}
 
         if not self.vt_client:
-            for fname, meta in attachments.items():
-                results[fname] = self._vt_unavailable(meta)
+            for att_counter, meta in attachments.items():
+                results[att_counter] = self._vt_unavailable(meta)
             return self._wrap(results, errors=["missing_vt_service"])
 
-        fnames = list(attachments.keys())
+        att_counter = list(attachments.keys())
         tasks = []
-        sha256_by_fname = {}
+        sha256_by_att = {}
 
-        for fname in fnames:
-            meta = attachments[fname]
+        for counter in att_counter:
+            meta = attachments[counter]
+            filename = meta["filename"]
             sha256 = hashlib.sha256(meta["file_bytes"]).hexdigest()
-            sha256_by_fname[fname] = sha256
+            sha256_by_att[counter] = sha256
             tasks.append(self.vt_client(sha256))
 
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for fname, vt in zip(fnames, responses):
-            sha256 = sha256_by_fname[fname]
+        for counter, vt in zip(att_counter, responses):
+            sha256 = sha256_by_att[counter]
 
             if isinstance(vt, Exception):
-                results[fname] = {
+                results[counter] = {
+                    "filename": attachments[counter]["filename"],
                     "sha256": sha256,
                     "virustotal": {
                         "status": "exception",
@@ -90,7 +92,8 @@ class AttachmentHeuristics:
                     "undetected": vt.stats.undetected,
                 }
 
-            results[fname] = {
+            results[counter] = {
+                "filename": attachments[counter]["filename"],
                 "sha256": sha256,
                 "virustotal": {
                     "status": vt.status,
@@ -109,6 +112,7 @@ class AttachmentHeuristics:
 
     def _vt_unavailable(self, meta):
         return {
+            "filename": meta.get("filename"),
             "sha256": hashlib.sha256(meta["file_bytes"]).hexdigest(),
             "virustotal": {
                 "status": "unavailable",
@@ -131,19 +135,21 @@ class AttachmentHeuristics:
         results = {}
 
         if self.yara_engine is None:
-            for fname in attachments:
-                results[fname] = {
+            for att_counter, meta in attachments.items():
+                results[att_counter] = {
+                    "filename": meta.get("filename"),
                     "flag": False,
                     "matches": [],
                     "error": "YARA engine not provided",
                 }
             return self._wrap(results, errors=["missing_yara_engine"])
 
-        for fname, meta in attachments.items():
+        for att_counter, meta in attachments.items():
             file_bytes = meta.get("file_bytes")
 
             if not file_bytes:
-                results[fname] = {
+                results[att_counter] = {
+                    "filename": meta.get("filename"),
                     "flag": False,
                     "matches": [],
                     "error": "No file bytes",
@@ -180,20 +186,23 @@ class AttachmentHeuristics:
 
                     formatted.append(match_dict)
 
-                results[fname] = {
+                results[att_counter] = {
+                    "filename": meta.get("filename"),
                     "flag": any(m["flag"] for m in formatted),
                     "matches": formatted,
                 }
 
             except RuntimeError as e:
-                results[fname] = {
+                results[att_counter] = {
+                    "filename": meta.get("filename"),
                     "flag": False,
                     "matches": [],
                     "error": f"YARA runtime error: {e}",
                 }
 
             except Exception as e:
-                results[fname] = {
+                results[att_counter] = {
+                    "filename": meta.get("filename"),
                     "flag": False,
                     "matches": [],
                     "error": f"Unexpected YARA error: {e}",

@@ -26,6 +26,7 @@ class AttachmentProcessor:
         self.default_save_dir = default_save_dir
 
         self._parsed_cache: Optional[Dict[str, Dict[str, Any]]] = None
+        self._attachment_counter = 1
 
     # ---------------------Parsing -----------------------------
     def force_parse(self):
@@ -47,7 +48,8 @@ class AttachmentProcessor:
             if "error" in parsed:
                 continue
 
-            parsed_attachments[parsed["filename"]] = parsed
+            parsed_attachments[f"Attachment-{self._attachment_counter}"] = parsed
+            self._attachment_counter += 1
 
         return parsed_attachments
 
@@ -83,13 +85,14 @@ class AttachmentProcessor:
     def list(self):
         parsed = self._ensure_parsed()
         return {
-            filename : {
+            counter : {
+                "filename": d.get("filename"),
                 "size_human": d.get("size_human"),
                 "mime_type": d.get("mime_type"),
                 "extension": d.get("extension"),
                 "detected_ext": d.get("detected_ext"),
             }
-            for filename, d in parsed.items()
+            for counter, d in parsed.items()
         }
 
     def extract(self, save_dir: Optional[str] = None, save_files: bool = True):
@@ -120,12 +123,13 @@ class AttachmentProcessor:
     def hash(self):
         parsed = self._ensure_parsed()
         return { 
-            filename: {
+            counter : {
+                "filename": d.get("filename"),
                 "md5": hashlib.md5(d["file_bytes"]).hexdigest(),
                 "sha1": hashlib.sha1(d["file_bytes"]).hexdigest(),
                 "sha256": hashlib.sha256(d["file_bytes"]).hexdigest(),
             }
-            for filename, d in parsed.items()
+            for counter, d in parsed.items()
         }
 
     # -------------------- Utilities -----------------------------

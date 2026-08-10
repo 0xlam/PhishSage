@@ -32,10 +32,10 @@ def print_attachment_listing(results):
     table.add_column("Size", justify="right")
     table.add_column("MIME type", style="magenta")
 
-    for idx, (filename, meta) in enumerate(attachments.items(), 1):
+    for idx, (_, meta) in enumerate(attachments.items(), 1):
         table.add_row(
             str(idx),
-            filename,
+            meta.get("filename", "N/A"),
             meta.get("size_human", "N/A"),
             meta.get("mime_type", "N/A"),
         )
@@ -109,11 +109,11 @@ def print_attachment_hashes(hashes):
     table.add_column("label", style="dim", width=10)
     table.add_column("value", style="green")
 
-    for idx, (filename, info) in enumerate(hashes.items()):
+    for idx, (_, info) in enumerate(hashes.items()):
         if idx > 0:
             table.add_section()
 
-        table.add_row(Text(filename, style="cyan bold"), "")
+        table.add_row(Text(info.get("filename", "N/A"), style="cyan bold"), "")
         table.add_row("MD5", info.get("md5", "N/A"))
         table.add_row("SHA1", info.get("sha1", "N/A"))
         table.add_row("SHA256", info.get("sha256", "N/A"))
@@ -148,7 +148,7 @@ def print_vt_scan_attachments(results):
     malicious_total = 0
     suspicious_total = 0
 
-    for filename, info in attachments.items():
+    for _, info in attachments.items():
         total_files += 1
 
         sha256 = info.get("sha256", "N/A")
@@ -204,7 +204,7 @@ def print_vt_scan_attachments(results):
 
         console.print(Panel(
             body,
-            title=Text(filename, style="cyan"),
+            title=Text(info.get("filename", "N/A"), style="cyan"),
             subtitle=sha256,
             border_style="red" if is_flagged else "dim",
         ))
@@ -238,14 +238,14 @@ def print_yara_scan_attachments(results, verbose=False):
     matched_files = 0
     error_files = 0
 
-    for filename, scan_result in attachments.items():
+    for _, scan_result in attachments.items():
         total_files += 1
 
         if "error" in scan_result:
             error_files += 1
             console.print(Panel(
                 Text(f"Scan failed: {scan_result['error']}", style="red"),
-                title=Text(filename, style="cyan"),
+                title=Text(scan_result.get("filename", "N/A"), style="cyan"),
                 border_style="red",
             ))
             continue
@@ -256,7 +256,7 @@ def print_yara_scan_attachments(results, verbose=False):
         if not flagged:
             console.print(Panel(
                 Text("No rules matched.", style="green"),
-                title=Text(filename, style="cyan"),
+                title=Text(scan_result.get("filename", "N/A"), style="cyan"),
                 border_style="green",
             ))
             continue
@@ -300,7 +300,7 @@ def print_yara_scan_attachments(results, verbose=False):
 
         console.print(Panel(
             body,
-            title=Text(filename, style="cyan"),
+            title=Text(scan_result.get("filename", "N/A"), style="cyan"),
             subtitle=f"{len(matches)} rule(s) matched",
             border_style="red",
         ))
