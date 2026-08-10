@@ -95,7 +95,7 @@ class AttachmentProcessor:
             for counter, d in parsed.items()
         }
 
-    def extract(self, save_dir: Optional[str] = None, save_files: bool = True):
+    def extract(self, save_dir: Optional[str] = None):
         parsed = self._ensure_parsed()
         save_dir = save_dir if save_dir is not None else self.default_save_dir
 
@@ -103,20 +103,17 @@ class AttachmentProcessor:
 
         results = {}
 
-        for filename, parsed_data in parsed.items():
+        for counter, parsed_data in parsed.items():
             if "file_bytes" not in parsed_data:
                 continue
 
-            if not save_files:
-                results[filename] = None
-                continue
-
+            filename = parsed_data["filename"]
             path = self._unique_path(save_dir, filename)
 
             with open(path, "wb") as f:
                 f.write(parsed_data["file_bytes"])
 
-            results[filename] = path
+            results[counter] = { "filename": filename, "path": path }
 
         return results
 
@@ -137,7 +134,11 @@ class AttachmentProcessor:
     @staticmethod
     def _safe_filename(name: str) -> str:
         base_name = os.path.basename(name)
-        return re.sub(r"[^\w_.-]", "_", base_name)
+        cleaned = re.sub(r"[^\w_.-]", "_", base_name)
+        if cleaned in {"", ".", ".."} or cleaned.startswith(".."):
+            cleaned = "unnamed"
+        return cleaned
+
 
     @staticmethod
     def _human_readable_size(num_bytes: int, decimal_places: int = 2) -> str:
@@ -161,4 +162,4 @@ class AttachmentProcessor:
             path = os.path.join(directory, f"{base}_{counter}{ext}")
             counter += 1
 
-        return path
+        return os.path.abspath(path)

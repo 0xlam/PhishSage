@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from os.path import abspath
 
 from .printer.shared import print_error, print_success
 
@@ -36,4 +37,4 @@ class OutputWriter:
         if self.file:
             self.file.close()
             self.file = None
-            print_success(f"Results saved to: {self.output_path}")
+            print_success(f"Results saved to: {abspath(self.output_path)}")
