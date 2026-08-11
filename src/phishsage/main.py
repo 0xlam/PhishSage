@@ -1,7 +1,8 @@
+import logging
 from os.path import abspath
 import asyncio
-import mailparser
 from datetime import datetime
+import mailparser
 from phishsage.utils import get_parser
 from phishsage.outputs.writer import OutputWriter
 from phishsage.parsers import extract_mail_headers
@@ -138,7 +139,8 @@ def process_file(filepath, args, cache):
         return asyncio.run(run(args, parsed_mail, mail_headers, cache=cache))
 
     except Exception as e:
-        return {"error": f"Failed to process: {e}"}
+        logging.exception("Failed to process %s", filepath)
+        return {"error": f"Failed to process {filepath}: {e}"}
 
 
 async def run(args, mail, mail_headers, cache=None):

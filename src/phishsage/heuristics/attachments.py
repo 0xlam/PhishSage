@@ -60,7 +60,6 @@ class AttachmentHeuristics:
 
         for counter in att_counter:
             meta = attachments[counter]
-            filename = meta["filename"]
             sha256 = hashlib.sha256(meta["file_bytes"]).hexdigest()
             sha256_by_att[counter] = sha256
             tasks.append(self.vt_client(sha256))

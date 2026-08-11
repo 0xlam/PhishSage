@@ -15,10 +15,6 @@ def _flag_icon(flagged: bool) -> Text:
     return Text("✓", style="bold green")
 
 
-def _badge(text: str, style: str) -> Text:
-    return Text(f" {text} ", style=style)
-
-
 def _format_date(value) -> str:
     if not value:
         return "N/A"
