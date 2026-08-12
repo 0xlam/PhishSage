@@ -186,8 +186,17 @@ async def handle_links(args, mail, cache=None):
     if not links:
         return {"error": "No URLs found in the email"}
 
-    web_urls = [u for u in links if u.lower().startswith(("http://", "https://"))]
-    non_web = [u for u in links if u not in web_urls]
+    web_urls = []
+    non_web = []
+
+    for u in links:
+        low = u.lower()
+        if low.startswith(("http://", "https://")):
+            web_urls.append(u)
+        elif "://" not in u:
+            web_urls.append(f"https://{u}")
+        else:
+            non_web.append(u)
 
     json_output = {}
 

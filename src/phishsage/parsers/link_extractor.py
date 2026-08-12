@@ -1,16 +1,17 @@
-from bs4 import BeautifulSoup
+import html
+import re
 
-def extract_links(html_body):
-    if not html_body.strip():
+from urlextract import URLExtract
+
+extractor = URLExtract(cache_dns=False)
+
+
+def extract_links(body):
+    if not body.strip():
         return []
 
-    soup = BeautifulSoup(html_body, "html.parser")
-    links = []
-
-    for anchor in soup.find_all("a", href=True):
-        href = anchor.get("href", "").strip()
-
-        if href:
-            links.append(href)
+    body = html.unescape(body)
+    links = extractor.find_urls(body)
+    links = [re.sub(r"[.,;:!?()\[\]{}]+$", "", u) for u in links]
 
     return list(dict.fromkeys(links))

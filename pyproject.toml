@@ -28,7 +28,7 @@ classifiers = [
 
 dependencies = [
     "mail-parser>=4.0,<5",
-    "beautifulsoup4>=4.12,<5",
+    "urlextract>=1.9,<2",
     "tldextract>=5.0,<6",
     "python-dateutil>=2.9,<3",
     "python-whois>=0.9,<1",
