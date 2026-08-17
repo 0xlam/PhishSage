@@ -110,3 +110,25 @@
 ### Changed
 - Cached VirusTotal, WHOIS, redirect, SSL certificate, MX, and Spamhaus results using configurable TTLs.
 - Relaxed supported dependency bounds for `rich` and `cryptography`.
+
+
+## [2.5.0] – 2026-08-17
+
+### Breaking Changes
+* `--heuristics` is now **required** for the `headers` subcommand, the
+  previous "basic parse" mode was undocumented and crashed with `--json`.
+  Use `phishsage headers -f email.eml --heuristics` instead.
+
+### Added
+* Embedded TLD abuse heuristics for links (detects suspicious TLDs and
+  hyphen-heavy labels).
+* Bare-domain URLs in email bodies (e.g. `link.com`) are now normalized
+  to `https://`
+
+### Fixed
+* Link extraction now parses URLs from both plain-text and HTML bodies
+  instead of only HTML `<a href>` tags.
+* Prevented attachment filename collisions, same-named attachments no
+  longer silently overwrite each other in analysis results.
+* VirusTotal `not_found` results are no longer cached for 24h,
+  unanalyzed hashes are now re-queried.
