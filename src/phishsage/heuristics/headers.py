@@ -474,12 +474,31 @@ class HeaderHeuristics:
 
         try:
             resp = await self.dns_resolver.query_dns(domain, "MX")
-            mx_records = sorted(r.data.exchange.rstrip(".") for r in resp.answer)
+
+            mx_records = []
+            has_null_mx = False
+
+            for r in resp.answer:
+                exchange = r.data.exchange.rstrip(".") if r.data.exchange else ""
+                if exchange:
+                    mx_records.append(exchange)
+                else:
+                    has_null_mx = True
+
+            mx_records = sorted(set(m for m in mx_records if m))
 
             result["has_mx"] = bool(mx_records)
             result["records"] = mx_records
 
-            if not mx_records:
+            if has_null_mx:
+                alerts.append(
+                    {
+                        "type": "NULL_MX",
+                        "message": f"Domain {domain} publishes a null-MX (RFC 7505) and refuses mail.",
+                    }
+                )
+                result["has_mx"] = False
+            elif not mx_records:
                 alerts.append(
                     {
                         "type": "MX_MISSING",
@@ -490,9 +509,9 @@ class HeaderHeuristics:
         except aiodns.error.DNSError as e:
             code = e.args[0] if e.args else None
             message = e.args[1] if len(e.args) > 1 else str(e)
-            result["error"] = message
 
-            if code in ("ENOTFOUND", "ENODATA"):
+            if code in (aiodns.error.ARES_ENOTFOUND, aiodns.error.ARES_ENODATA):
+                result["error"] = None
                 alerts.append(
                     {
                         "type": "MX_MISSING",
@@ -500,6 +519,7 @@ class HeaderHeuristics:
                     }
                 )
             else:
+                result["error"] = message
                 alerts.append(
                     {
                         "type": "MX_ERROR",
