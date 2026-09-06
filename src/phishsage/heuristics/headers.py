@@ -548,26 +548,32 @@ class HeaderHeuristics:
             try:
                 cached = self.cache.get(key)
                 if cached is not None:
-                    entry, alerts, meta = cached
-                    return label, entry, alerts, meta
+                    cached_entry, cached_alerts, cached_meta = cached
+                    return label, cached_entry, cached_alerts, cached_meta
             except Exception:
                 pass
 
         try:
             result = await self.dns_resolver.query_dns(query_domain, "A")
             if result.answer:
+                listed = False
                 for answer in result.answer:
-                    if hasattr(answer, "host") and answer.host.startswith("127.0.1."):
-                        entry["listed"] = True
+                    data = getattr(answer, "data", None)
+                    ip_str = str(
+                        getattr(data, "addr", None)
+                        or getattr(answer, "host", None)
+                        or ""
+                    )
+                    if ip_str.startswith("127.0.1."):
+                        listed = True
                         alerts.append(
                             {
                                 "type": "DOMAIN_BLACKLISTED",
-                                "message": f"Domain {domain} is listed on Spamhaus DBL (IP: {answer.host})",
+                                "message": f"Domain {domain} is listed on Spamhaus DBL (IP: {ip_str})",
                             }
                         )
                         break
-                    else:
-                        entry["listed"] = False
+                entry["listed"] = listed
             else:
                 entry["listed"] = False
 
@@ -619,7 +625,14 @@ class HeaderHeuristics:
         final_alerts = []
         final_meta = {}
 
-        for label, entry, alerts, meta in results:
+        for result in results:
+            if isinstance(result, Exception):
+                final_alerts.append(
+                    {"type": "SPAMHAUS_TASK_FAILED", "message": str(result)}
+                )
+                continue
+
+            label, entry, alerts, meta = result
             final_results[label] = entry
             final_alerts.extend(alerts)
             final_meta[label] = meta
