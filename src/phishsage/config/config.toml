@@ -130,6 +130,12 @@ cert_expiry_soon_days_threshold = 10
 # SSL default port for certificate retrieval
 ssl_default_port = 443
 
+[network]
+# Time limit for entire HTTP request (connect + headers + response body)
+total_timeout = 30
+# Time limit just for establishing connection
+connect_timeout = 5
+
 [cache]
 dir = "~/.cache/phishsage"
 ttl_vt       = 86400    # 24h

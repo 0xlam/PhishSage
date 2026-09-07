@@ -21,6 +21,8 @@ from phishsage.config.loader import (
     THRESHOLD_YOUNG,
     TRIVIAL_SUBDOMAINS,
     VIRUSTOTAL_API_KEY,
+    HTTP_TOTAL_TIMEOUT,
+    HTTP_CONNECT_TIMEOUT,
 )
 
 
@@ -104,7 +106,11 @@ async def _vt_scan(web_urls, cache):
 async def _follow_redirects(web_urls, cache):
     from phishsage.services.redirect import RedirectService
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(
+            total=HTTP_TOTAL_TIMEOUT, connect=HTTP_CONNECT_TIMEOUT
+        )
+    ) as session:
         redirect_service = RedirectService(session=session, max_redirects=MAX_REDIRECTS)
 
         analyzer = LinkHeuristics(
@@ -166,7 +172,11 @@ async def _run_heuristics(web_urls, enrich, cache):
         if "redirects" in enrich or "all" in enrich:
             from phishsage.services.redirect import RedirectService
 
-            session = aiohttp.ClientSession()
+            session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(
+                    total=HTTP_TOTAL_TIMEOUT, connect=HTTP_CONNECT_TIMEOUT
+                )
+            )
             redirect_service = RedirectService(
                 session=session, max_redirects=MAX_REDIRECTS
             )

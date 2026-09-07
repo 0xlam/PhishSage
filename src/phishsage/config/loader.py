@@ -65,6 +65,14 @@ CERT_EXPIRY_SOON_DAYS_THRESHOLD = HEURISTICS.get("cert_expiry_soon_days_threshol
 SSL_DEFAULT_PORT = HEURISTICS.get("ssl_default_port", 443)
 
 # -------------------------------
+#  NETWORK CONFIG
+# -------------------------------
+NETWORK = raw.get("network", {})
+
+HTTP_TOTAL_TIMEOUT = NETWORK.get("total_timeout", 30)
+HTTP_CONNECT_TIMEOUT = NETWORK.get("connect_timeout", 5)
+
+# -------------------------------
 #  CACHE CONFIG
 # -------------------------------
 CACHE = raw.get("cache", {})
