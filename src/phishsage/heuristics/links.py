@@ -56,15 +56,17 @@ class LinkHeuristics:
             return LinkHeuristicResult(
                 name="certificate",
                 flags=False,
-                reasons=["missing_hostname"],
-                meta=make_meta(),
+                reasons=[],
+                status="skipped",
+                meta=make_meta(diagnostic={"missing": "hostname"}),
             )
 
         if not self.ssl_fetcher:
             return LinkHeuristicResult(
                 name="certificate",
                 flags=False,
-                reasons=["missing_ssl_service"],
+                reasons=[],
+                status="skipped",
                 meta=make_meta(
                     inspected={"hostname": hostname},
                     diagnostic={"missing_service": "ssl_fetcher"},
@@ -114,8 +116,9 @@ class LinkHeuristics:
         except Exception as e:
             return LinkHeuristicResult(
                 name="certificate",
-                flags=True,
-                reasons=["certificate_check_failed"],
+                flags=False,
+                reasons=[],
+                status="error",
                 meta=make_meta(
                     inspected={"hostname": hostname},
                     diagnostic={"error": str(e), "exception_type": type(e).__name__},
@@ -161,8 +164,9 @@ class LinkHeuristics:
             return LinkHeuristicResult(
                 name="suspicious_tld",
                 flags=False,
-                reasons=["missing_suffix"],
-                meta=make_meta(),
+                reasons=[],
+                status="skipped",
+                meta=make_meta(diagnostic={"missing": "suffix"}),
             )
 
         is_known_suspicious = suffix in self.config.SUSPICIOUS_TLDS
@@ -241,7 +245,9 @@ class LinkHeuristics:
 
         if not hostname:
             return LinkHeuristicResult(
-                name="ip_url", flags=False, reasons=["missing_hostname"], meta=make_meta()
+                name="ip_url", flags=False, reasons=[],
+                status="skipped",
+                meta=make_meta(diagnostic={"missing": "hostname"}),
             )
 
         try:
@@ -321,8 +327,9 @@ class LinkHeuristics:
             return LinkHeuristicResult(
                 name="shortened_url",
                 flags=False,
-                reasons=["missing_registered_domain"],
-                meta=make_meta(),
+                reasons=[],
+                status="skipped",
+                meta=make_meta(diagnostic={"missing": "registered_domain"}),
             )
 
         domain = domain.lower()
@@ -348,8 +355,9 @@ class LinkHeuristics:
             return LinkHeuristicResult(
                 name="abusable_platform",
                 flags=False,
-                reasons=["missing_registered_domain"],
-                meta=make_meta(),
+                reasons=[],
+                status="skipped",
+                meta=make_meta(diagnostic={"missing": "registered_domain"}),
             )
 
         domain = domain.lower()
@@ -457,8 +465,9 @@ class LinkHeuristics:
             return LinkHeuristicResult(
                 name="numeric_domain",
                 flags=False,
-                reasons=["missing_domain_label"],
-                meta=make_meta(),
+                reasons=[],
+                status="skipped",
+                meta=make_meta(diagnostic={"missing": "domain_label"}),
             )
 
         flags = label.isdigit()
@@ -480,15 +489,20 @@ class LinkHeuristics:
             return LinkHeuristicResult(
                 name="domain_age",
                 flags=False,
-                reasons=["missing_registered_domain"],
-                meta=make_meta(inspected={"registered_domain": None}),
+                reasons=[],
+                status="skipped",
+                meta=make_meta(
+                    inspected={"registered_domain": None},
+                    diagnostic={"missing": "registered_domain"},
+                ),
             )
 
         if not self.whois_lookup:
             return LinkHeuristicResult(
                 name="domain_age",
                 flags=False,
-                reasons=["missing_whois_service"],
+                reasons=[],
+                status="skipped",
                 meta=make_meta(
                     inspected={"registered_domain": domain},
                     diagnostic={"missing_service": "whois_lookup"},
@@ -541,8 +555,9 @@ class LinkHeuristics:
         except Exception as e:
             return LinkHeuristicResult(
                 name="domain_age",
-                flags=True,
-                reasons=["whois_lookup_failed"],
+                flags=False,
+                reasons=[],
+                status="error",
                 meta=make_meta(
                     inspected={"registered_domain": domain},
                     diagnostic={"error": str(e), "exception_type": type(e).__name__},
@@ -556,7 +571,8 @@ class LinkHeuristics:
             return LinkHeuristicResult(
                 name="virustotal",
                 flags=False,
-                reasons=["missing_vt_service"],
+                reasons=[],
+                status="skipped",
                 meta=make_meta(
                     inspected={"normalized_url": url},
                     diagnostic={"missing_service": "vt_lookup"},
@@ -569,13 +585,13 @@ class LinkHeuristics:
             if vt.status != "ok":
                 return LinkHeuristicResult(
                     name="virustotal",
-                    flags=True,
-                    reasons=["vt_error"],
+                    flags=False,
+                    reasons=[],
+                    status="error",
                     meta=make_meta(
-                        inspected={"normalized_url": url, "resource": vt.resource},
+                        inspected={"normalized_url": url},
                         diagnostic={
-                            "status": vt.status,
-                            "error": getattr(vt, "error", None),
+                            "error": vt.status if isinstance(vt.status, str) else "failed",
                         },
                     ),
                 )
@@ -609,8 +625,9 @@ class LinkHeuristics:
         except Exception as e:
             return LinkHeuristicResult(
                 name="virustotal",
-                flags=True,
-                reasons=["vt_failed"],
+                flags=False,
+                reasons=[],
+                status="error",
                 meta=make_meta(
                     inspected={"normalized_url": url},
                     diagnostic={"error": str(e), "exception_type": type(e).__name__},
@@ -622,7 +639,8 @@ class LinkHeuristics:
             return LinkHeuristicResult(
                 name="redirect_chain",
                 flags=False,
-                reasons=["missing_redirect_service"],
+                reasons=[],
+                status="skipped",
                 meta=make_meta(diagnostic={"missing_service": "redirect_lookup"}),
             )
 
@@ -645,9 +663,13 @@ class LinkHeuristics:
             if len(chain_result.chain) == 0:
                 return LinkHeuristicResult(
                     name="redirect_chain",
-                    flags=True,
-                    reasons=["redirect_resolution_failed"],
-                    meta=make_meta(inspected={"normalized_url": url}),
+                    flags=False,
+                    reasons=[],
+                    status="error",
+                    meta=make_meta(
+                        inspected={"normalized_url": url},
+                        diagnostic={"error": "no redirect chain resolved"},
+                    ),
                 )
 
             redirect_count = len(chain_result.chain) - 1
@@ -678,8 +700,9 @@ class LinkHeuristics:
         except Exception as exc:
             return LinkHeuristicResult(
                 name="redirect_chain",
-                flags=True,
-                reasons=["redirect_resolution_failed"],
+                flags=False,
+                reasons=[],
+                status="error",
                 meta=make_meta(
                     inspected={"normalized_url": url},
                     diagnostic={
@@ -728,8 +751,9 @@ class LinkHeuristics:
                     if isinstance(data, Exception):
                         data = LinkHeuristicResult(
                             name=name,
-                            flags=True,
-                            reasons=[f"{name}_failed"],
+                            flags=False,
+                            reasons=[],
+                            status="error",
                             meta=make_meta(
                                 diagnostic={
                                     "error": str(data),
@@ -745,11 +769,18 @@ class LinkHeuristics:
                 {reason for r in all_results if r.flags for reason in r.reasons}
             )
 
+            service_errors = sorted(
+                name for name, r in enrichment.items() if r.status == "error"
+            )
+
+            extra = {"service_errors": service_errors} if service_errors else {}
+
             return {
                 "url": url,
                 "heuristics": {k: v.__dict__ for k, v in heuristics.items()},
                 "enrichment": {k: v.__dict__ for k, v in enrichment.items()},
                 "aggregated_flags": aggregated_flags,
+                **extra,
             }
 
         except Exception as e:

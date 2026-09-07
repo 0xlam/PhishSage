@@ -7,6 +7,7 @@ class LinkHeuristicResult:
     flags: bool
     reasons: List[str]
     meta: Dict[str, Any]
+    status: str = "ok"
 
 
 @dataclass
