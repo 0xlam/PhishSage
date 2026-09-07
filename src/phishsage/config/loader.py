@@ -61,7 +61,6 @@ VIRUSTOTAL_API_KEY = API_CONFIG["virustotal_api_key"]
 CERT_RECENT_ISSUE_DAYS_THRESHOLD = HEURISTICS.get(
     "cert_recent_issue_days_threshold", 30
 )
-CERT_EXPIRY_SOON_DAYS_THRESHOLD = HEURISTICS.get("cert_expiry_soon_days_threshold", 10)
 SSL_DEFAULT_PORT = HEURISTICS.get("ssl_default_port", 443)
 
 # -------------------------------

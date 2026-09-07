@@ -124,9 +124,6 @@ hyphen_threshold = 4
 # How many days old a certificate must be to be flagged as "recently issued"
 cert_recent_issue_days_threshold = 30
 
-# How many days before expiry a certificate is considered "expiring soon"
-cert_expiry_soon_days_threshold = 10
-
 # SSL default port for certificate retrieval
 ssl_default_port = 443
 
