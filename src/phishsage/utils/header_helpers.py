@@ -126,6 +126,9 @@ DATE_PATTERN = r"""
 """
 
 
+_PAREN_PAIR = re.compile(r"\([^()]*\)")
+
+
 def earliest_received_date(received_headers):
     """
     Takes a list of Received headers (top to bottom in the email)
@@ -133,7 +136,11 @@ def earliest_received_date(received_headers):
     """
     for header in reversed(received_headers):
         while "(" in header:
-            header = re.sub(r"\([^()]*\)", "", header)
+            new_header = _PAREN_PAIR.sub("", header)
+            if new_header == header:
+                break
+            header = new_header
+        header = re.sub(r"[()]", "", header)
         match = re.search(DATE_PATTERN, header, re.VERBOSE)
         if match:
             date_str = match.group(0).strip()
