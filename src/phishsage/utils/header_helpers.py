@@ -7,6 +7,13 @@ from email.utils import parseaddr
 from email_validator import validate_email, EmailNotValidError
 
 
+_extractor = tldextract.TLDExtract(
+    suffix_list_urls=(),
+    fallback_to_snapshot=True,
+)
+extract_tld = _extractor
+
+
 def normalize_domain(domain):
     """Normalize domain: lowercase, strip trailing dot, IDNA-encode."""
     if not domain:
@@ -78,7 +85,7 @@ def get_domain(email):
         return None
     try:
         domain = email.split("@")[1]
-        extracted = tldextract.extract(domain).top_domain_under_public_suffix
+        extracted = _extractor(domain).top_domain_under_public_suffix
         return normalize_domain(extracted)
     except Exception:
         return None
@@ -92,8 +99,8 @@ def is_domain_match(parent_domain, child_domain):
         return False
 
     try:
-        parent_sld = tldextract.extract(parent_norm).top_domain_under_public_suffix
-        child_sld = tldextract.extract(child_norm).top_domain_under_public_suffix
+        parent_sld = _extractor(parent_norm).top_domain_under_public_suffix
+        child_sld = _extractor(child_norm).top_domain_under_public_suffix
     except Exception:
         return False
 

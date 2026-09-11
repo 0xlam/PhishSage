@@ -1,12 +1,12 @@
 import ipaddress
 from yarl import URL
-import tldextract
 from phishsage.models.links import ParsedURL
+from phishsage.utils.header_helpers import extract_tld
 
 
 def extract_domain_parts(host: str):
     try:
-        e = tldextract.extract(host)
+        e = extract_tld(host)
         registered = f"{e.domain}.{e.suffix}" if e.suffix else e.domain
         return registered, e.domain, e.subdomain, e.suffix
     except Exception:
