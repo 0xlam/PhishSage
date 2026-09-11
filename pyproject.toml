@@ -34,9 +34,8 @@ dependencies = [
     "python-whois>=0.9,<1",
     "email_validator>=2.0,<3",
     "idna>=3.6,<4",
-    "dnspython>=2.6,<3",
-    "aiohttp>=3.9,<4",      
-    "aiodns>=3.0,<5",        
+    "aiohttp>=3.9,<4",
+    "aiodns>=3.0,<5",
     "yarl>=1.9,<2",
     "rich>=13.0,<16",      
 ]
