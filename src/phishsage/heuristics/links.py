@@ -716,6 +716,18 @@ class LinkHeuristics:
         try:
             parsed = parse_url(url)
 
+            if parsed is None:
+                return {
+                    "url": url,
+                    "flags": False,
+                    "reasons": [],
+                    "status": "skipped",
+                    "meta": make_meta(
+                        inspected={"url": url},
+                        diagnostic={"error": "unparseable"},
+                    ),
+                }
+
             heuristics = {
                 "ip_based": self.is_ip_url(parsed),
                 "suspicious_tld": self.has_suspicious_tld(parsed),

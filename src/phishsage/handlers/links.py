@@ -85,22 +85,55 @@ async def _vt_scan(web_urls, cache):
     analyzer = LinkHeuristics(
         config=None, vt_lookup=partial(vt_service.lookup_url, cache=cache)
     )
-    tasks = [analyzer.scan_virustotal(parse_url(url)) for url in web_urls]
-    vt_results = await asyncio.gather(*tasks)
 
     vt_dict = {}
 
-    for url, result in zip(web_urls, vt_results):
+    parseable = []
+    for url in web_urls:
+        parsed = parse_url(url)
+        if parsed is None:
+            vt_dict[url] = {
+                "status": "skipped",
+                "error": "unparseable",
+                "stats": {},
+                "last_analysis_date": None,
+                "first_submission_date": None,
+            }
+        else:
+            parseable.append((url,parsed))
+            
+
+    tasks = [analyzer.scan_virustotal(p) for _, p in parseable]
+    vt_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for (url, _), result in zip(parseable, vt_results):
+        if isinstance(result, Exception):
+            vt_dict[url] = {
+                "status": "error",
+                "error": str(result),
+                "stats": {},
+                "last_analysis_date": None,
+                "first_submission_date": None,
+            }
+            continue
+
         inspected = result.meta.get("inspected") or {}
         evidence = result.meta.get("evidence") or {}
-        vt_dict[url] = {
-            "status": inspected.get("status"),
+        diagnostic = result.meta.get("diagnostic") or {}
+
+        entry = {
+            "status": result.status,
             "stats": evidence.get("stats") or {},
             "last_analysis_date": inspected.get("last_analysis_date"),
             "first_submission_date": inspected.get("first_submission_date"),
         }
+        if diagnostic.get("error"):
+            entry["error"] = diagnostic["error"]
+
+        vt_dict[url] = entry
 
     return vt_dict
+
 
 
 async def _follow_redirects(web_urls, cache):
@@ -117,16 +150,30 @@ async def _follow_redirects(web_urls, cache):
             config=None, redirect_lookup=partial(redirect_service.resolve, cache=cache)
         )
 
-        tasks = [analyzer.resolve_redirect_chain(parse_url(url)) for url in web_urls]
+        parseable = []
+        redirect_results = []
+        for url in web_urls:
+            parsed = parse_url(url)
+            if parsed is None:
+                redirect_results.append(
+                    {
+                        "original_url": url,
+                        "status": "skipped",
+                        "error": "unparseable",
+                    }
+                )
+            else:
+                parseable.append((url, parsed))
 
+        tasks = [analyzer.resolve_redirect_chain(p) for _, p in parseable]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    redirect_results = []
-    for url, result in zip(web_urls, results):
+    for (url, _), result in zip(parseable, results):
         if isinstance(result, Exception):
             redirect_results.append(
                 {
                     "original_url": url,
+                    "status": "error",
                     "error": str(result),
                 }
             )
@@ -144,6 +191,7 @@ async def _follow_redirects(web_urls, cache):
             redirect_results.append(
                 {
                     "original_url": original_url,
+                    "status": result.status,
                     "error": diagnostic.get("error", "request_failed"),
                 }
             )
@@ -152,6 +200,7 @@ async def _follow_redirects(web_urls, cache):
         redirect_results.append(
             {
                 "original_url": original_url,
+                "status": result.status,
                 "final_url": final_url,
                 "redirected": bool(evidence.get("redirect_count", 0) > 0),
                 "redirect_count": evidence.get("redirect_count", 0),
