@@ -76,10 +76,14 @@ def print_vt_scan_links(vt_results):
         first_submission_date = result.get("first_submission_date")
 
         is_flagged = isinstance(stats, dict) and stats.get("malicious", 0) > 0
+        is_error = status in ("error", "auth_error", "rate_limited", "not_found")
 
         if is_flagged:
             total_flagged += 1
             verdict = Text("FLAGGED", style="bold red")
+        elif is_error:
+            total_errors += 1
+            verdict = Text("ERROR", style="bold yellow")
         else:
             verdict = Text("CLEAN", style="bold green")
 
@@ -104,9 +108,8 @@ def print_vt_scan_links(vt_results):
             body.add_row("Last scan", _format_date(last_analysis_date))
             body.add_row("First seen", _format_date(first_submission_date))
         else:
-            if status == "error":
-                total_errors += 1
-                body.add_row("Error", Text(result.get("error", "unknown"), style="red"))
+            if is_error:
+                body.add_row("Error", Text(result.get("error", status), style="red"))
             else:
                 body.add_row("Stats", Text("unavailable", style="dim"))
 
@@ -114,7 +117,7 @@ def print_vt_scan_links(vt_results):
             Panel(
                 body,
                 title=header,
-                border_style="red" if is_flagged else "green",
+                border_style="red" if is_flagged else "yellow" if is_error else "green",
             )
         )
 
@@ -190,10 +193,13 @@ def print_link_heuristics(results: list) -> None:
 
     total_urls = len(results)
     flagged_urls = 0
+    degraded_urls = 0
 
     sorted_results = sorted(
         results,
-        key=lambda r: bool(r.get("aggregated_flags")),
+        key=lambda r: (
+            bool(r.get("service_errors")) and not bool(r.get("aggregated_flags"))
+        ) + 2 * bool(r.get("aggregated_flags")),
         reverse=True,
     )
 
@@ -201,9 +207,12 @@ def print_link_heuristics(results: list) -> None:
         url = res.get("url", "N/A")
         agg_flags = res.get("aggregated_flags", [])
         is_flagged = bool(agg_flags)
+        is_degraded = bool(res.get("service_errors")) and not is_flagged
 
         if is_flagged:
             flagged_urls += 1
+        elif is_degraded:
+            degraded_urls += 1
 
         # --- header ---
         title = Text()
@@ -212,6 +221,8 @@ def print_link_heuristics(results: list) -> None:
         title.append("  ")
         if is_flagged:
             title.append("FLAGGED", style="bold red")
+        elif is_degraded:
+            title.append("DEGRADED", style="bold yellow")
         else:
             title.append("CLEAN", style="bold green")
 
@@ -407,6 +418,15 @@ def print_link_heuristics(results: list) -> None:
             flags_panel = Panel(
                 flag_text, title="[red]aggregated flags[/red]", border_style="red"
             )
+        elif is_degraded:
+            flag_text = Text(
+                ", ".join(res.get("service_errors", [])), style="bold yellow"
+            )
+            flags_panel = Panel(
+                flag_text,
+                title="[yellow]enrichment degraded[/yellow]",
+                border_style="yellow",
+            )
         else:
             flags_panel = Panel(
                 Text("No flags", style="green"),
@@ -419,17 +439,20 @@ def print_link_heuristics(results: list) -> None:
                 Columns(panels, equal=False, expand=True),
                 title=title,
                 subtitle=flags_panel.renderable if not is_flagged else None,
-                border_style="red" if is_flagged else "green",
+                border_style=(
+                    "red" if is_flagged else "yellow" if is_degraded else "green"
+                ),
             )
         )
 
-        if is_flagged:
+        if is_flagged or is_degraded:
             console.print(flags_panel)
 
     console.print()
     console.print(
         f"[dim]Summary:[/dim] {total_urls} URL(s) analyzed · "
         f"[red]{flagged_urls} flagged[/red] · "
-        f"[green]{total_urls - flagged_urls} clean[/green]"
+        f"[yellow]{degraded_urls} degraded[/yellow] · "
+        f"[green]{total_urls - flagged_urls - degraded_urls} clean[/green]"
     )
     console.print()
