@@ -13,11 +13,11 @@
 
 PhishSage covers three analysis surfaces, each a CLI subcommand:
 
-**`headers`** — SPF/DKIM/DMARC extraction and alignment checks, Reply-To/Return-Path anomalies, Message-ID domain validation, free-provider detection, timestamp drift between `Date` and `Received`, optional MX record lookup, Spamhaus DBL query, and WHOIS domain-age flagging.
+**`headers`**: SPF/DKIM/DMARC extraction and alignment checks, Reply-To/Return-Path anomalies, Message-ID domain validation, free-provider detection, timestamp drift between `Date` and `Received`, optional MX record lookup, Spamhaus DBL query, and WHOIS domain-age flagging.
 
-**`links`** — URL extraction from body and headers, raw-IP URL detection, suspicious/uncommon TLD flagging, subdomain depth and entropy scoring (detects randomly generated domains), shortened-URL detection, free hosting platform detection, SSL/TLS certificate inspection, WHOIS domain age, VirusTotal URL lookup, redirect-chain tracing, path-depth analysis, hyphen-abuse detection, and embedded fake-TLD detection.
+**`links`**: URL extraction from body and headers, raw-IP URL detection, suspicious/uncommon TLD flagging, subdomain depth and entropy scoring (detects randomly generated domains), shortened-URL detection, free hosting platform detection, SSL/TLS certificate inspection, WHOIS domain age, VirusTotal URL lookup, redirect-chain tracing, path-depth analysis, hyphen-abuse detection, and embedded fake-TLD detection.
 
-**`attachments`** — Listing with MIME type and size, safe attachment extraction, MD5/SHA1/SHA256 hashing, VirusTotal hash lookup, and YARA rule scanning with optional verbose string/offset output.
+**`attachments`**: Listing with MIME type and size, safe attachment extraction, MD5/SHA1/SHA256 hashing, VirusTotal hash lookup, and YARA rule scanning with optional verbose string/offset output.
 
 Enrichment is opt-in via `--enrich` and runs concurrently. Headers support `mx`, `spamhaus`, and `domain_age`; links support `domain_age`, `certificate`, `virustotal`, and `redirects`.
 
@@ -191,7 +191,29 @@ Without `--json`, PhishSage renders Rich terminal output with color-coded alerts
 
 ## Configuration
 
-`config.toml` (inside the package) controls all tunable thresholds and heuristic lists. The most useful knobs:
+Thresholds, heuristic lists, network timeouts, and cache TTLs are defined in the packaged `config.toml`. You can **override them per-run with `--config`**:
+
+```bash
+# Use your own config file instead of the packaged defaults
+phishsage links -f email.eml --heuristics --config /path/to/custom.toml
+```
+
+Your file is **merged on top of the packaged defaults**. You only need to specify the keys you want to change. Sections (e.g. `[heuristics]`, `[cache]`) merge recursively; individual values and lists are replaced wholesale.
+
+Example `custom.toml`:
+
+```toml
+[heuristics]
+hyphen_threshold = 2
+
+[network]
+total_timeout = 60
+
+[cache]
+dir = "~/.cache/phishsage-custom"
+```
+
+The packaged default file lives at `src/phishsage/config/config.toml`. Copy it as a starting point. The most useful knobs:
 
 ### Heuristics
 
@@ -218,9 +240,6 @@ Without `--json`, PhishSage renders Rich terminal output with color-coded alerts
 | `ttl_mx` | `86400` seconds | Cache TTL for MX record lookups |
 | `ttl_spamhaus` | `3600` seconds | Cache TTL for Spamhaus DBL lookups |
 
-
-Lists (`suspicious_tlds`, `shorteners`, `free_email_domains`, `abusable_platform_domains`, `trivial_subdomains`) are all editable in the same file.
-
 ---
 
 ## Scope & limitations
@@ -228,7 +247,7 @@ Lists (`suspicious_tlds`, `shorteners`, `free_email_domains`, `abusable_platform
 - **Triage tool, not a mail gateway.** Not designed for inline enforcement or production email filtering.
 - **Network-dependent enrichment.** WHOIS, DNS, VirusTotal, and SSL checks require connectivity and may hit rate limits.
 - **Attachment coverage.** Attachment analysis currently covers listing, extraction, hashing, VirusTotal hash lookup, and YARA scanning. Deeper content inspection is planned.
-- **False positives.** Default thresholds are set strictly and may produce false positives depending on your environment — adjust `config.toml` as needed.
+- **False positives.** Default thresholds are set strictly and may produce false positives depending on your environment. Use `--config` to override them as needed.
 - **Cached enrichment may become stale.** Use `--cache-dir` to isolate cache data per investigation, or clear the cache when fresh lookups are required.
 
 ---
@@ -241,4 +260,4 @@ Bug reports, heuristic improvements, new TLD/shortener/platform entries, and add
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT : see [LICENSE](LICENSE).
