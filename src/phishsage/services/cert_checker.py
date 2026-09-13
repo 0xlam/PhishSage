@@ -15,14 +15,20 @@ except ImportError as exc:
     ) from exc
 
 from phishsage.models.certificate import CertificateResult
-from phishsage.config.loader import CACHE_TTL_SSL
 
 
 class SSLService:
-    def __init__(self, port: int, timeout: int = 10, operation_timeout: int = 15):
+    def __init__(
+        self,
+        port: int,
+        timeout: int = 10,
+        operation_timeout: int = 15,
+        cache_ttl: int = 43200,
+    ):
         self.port = port
         self.timeout = timeout
         self.operation_timeout = operation_timeout
+        self.cache_ttl = cache_ttl
 
     async def fetch(self, hostname: str, cache=None) -> CertificateResult:
         key = f"ssl:{hostname}"
@@ -42,7 +48,7 @@ class SSLService:
 
         if cache is not None:
             try:
-                cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_SSL)
+                cache.set(key, dataclasses.asdict(result), expire=self.cache_ttl)
             except Exception:
                 pass
 

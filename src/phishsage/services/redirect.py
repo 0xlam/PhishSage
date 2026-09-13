@@ -2,16 +2,17 @@ import aiohttp
 import asyncio
 import dataclasses
 from phishsage.models.redirect import RedirectResult
-from phishsage.config.loader import CACHE_TTL_REDIRECT
-
 
 _SKIP_CACHE = {0}  # timeouts and connection failures
 
 
 class RedirectService:
-    def __init__(self, session: aiohttp.ClientSession, max_redirects: int):
+    def __init__(
+        self, session: aiohttp.ClientSession, max_redirects: int, cache_ttl: int = 21600
+    ):
         self.session = session
         self.max_redirects = max_redirects
+        self.cache_ttl = cache_ttl
 
     async def resolve(self, url: str, cache=None) -> RedirectResult:
         key = f"redirect:{url}"
@@ -28,7 +29,7 @@ class RedirectService:
 
         if cache is not None and result.final_status not in _SKIP_CACHE:
             try:
-                cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_REDIRECT)
+                cache.set(key, dataclasses.asdict(result), expire=self.cache_ttl)
             except Exception:
                 pass
 

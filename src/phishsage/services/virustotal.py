@@ -8,14 +8,14 @@ except ImportError as exc:
 
 import dataclasses
 from phishsage.models.virustotal import VirusTotalResult, VirusTotalStats
-from phishsage.config.loader import CACHE_TTL_VT
 
 _SKIP_CACHE = {"auth_error", "rate_limited", "not_found"}
 
 
 class VirusTotalService:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, cache_ttl: int = 86400):
         self.api_key = api_key
+        self.cache_ttl = cache_ttl
 
     async def lookup_url(self, url: str, cache=None) -> VirusTotalResult:
         return await self._lookup(resource=url, resource_type="url", cache=cache)
@@ -50,7 +50,7 @@ class VirusTotalService:
 
         if cache is not None and result.status not in _SKIP_CACHE:
             try:
-                cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_VT)
+                cache.set(key, dataclasses.asdict(result), expire=self.cache_ttl)
             except Exception:
                 pass
 

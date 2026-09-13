@@ -1,5 +1,4 @@
 from pathlib import Path
-from phishsage.config.loader import CACHE_DIR
 
 try:
     import diskcache
@@ -10,7 +9,12 @@ except ImportError as exc:
     ) from exc
 
 
-def get_cache(cache_dir: str | None = None) -> diskcache.Cache:
-    path = Path(cache_dir) if cache_dir else CACHE_DIR
+def get_cache(cache_dir: str | None = None, config=None) -> diskcache.Cache:
+    if cache_dir:
+        path = Path(cache_dir).expanduser()
+    elif config is not None:
+        path = config.cache_dir
+    else:
+        path = Path("~/.cache/phishsage").expanduser()
     path.mkdir(parents=True, exist_ok=True)
     return diskcache.Cache(str(path))

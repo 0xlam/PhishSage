@@ -5,46 +5,33 @@ import aiohttp
 from phishsage.parsers import parse_url, extract_links
 from phishsage.heuristics.links import LinkHeuristics
 from phishsage.config.schemas import LinkHeuristicConfig
-from phishsage.config.loader import (
-    ABUSABLE_PLATFORM_DOMAINS,
-    CERT_RECENT_ISSUE_DAYS_THRESHOLD,
-    COMMON_TLDS,
-    SSL_DEFAULT_PORT,
-    ENTROPY_THRESHOLD,
-    HYPHEN_THRESHOLD,
-    MAX_PATH_DEPTH,
-    MAX_REDIRECTS,
-    SHORTENERS,
-    SUBDOMAIN_THRESHOLD,
-    SUSPICIOUS_TLDS,
-    THRESHOLD_EXPIRING,
-    THRESHOLD_YOUNG,
-    TRIVIAL_SUBDOMAINS,
-    VIRUSTOTAL_API_KEY,
-    HTTP_TOTAL_TIMEOUT,
-    HTTP_CONNECT_TIMEOUT,
-)
+from phishsage.config.object import Config
 
 
-def _build_config() -> LinkHeuristicConfig:
+def _build_config(config: Config) -> LinkHeuristicConfig:
     return LinkHeuristicConfig(
-        ENTROPY_THRESHOLD=ENTROPY_THRESHOLD,
-        SUBDOMAIN_THRESHOLD=SUBDOMAIN_THRESHOLD,
-        MAX_PATH_DEPTH=MAX_PATH_DEPTH,
-        THRESHOLD_YOUNG=THRESHOLD_YOUNG,
-        THRESHOLD_EXPIRING=THRESHOLD_EXPIRING,
-        CERT_RECENT_ISSUE_DAYS_THRESHOLD=CERT_RECENT_ISSUE_DAYS_THRESHOLD,
-        HYPHEN_THRESHOLD=HYPHEN_THRESHOLD,
-        SUSPICIOUS_TLDS=SUSPICIOUS_TLDS,
-        SHORTENERS=SHORTENERS,
-        ABUSABLE_PLATFORM_DOMAINS=ABUSABLE_PLATFORM_DOMAINS,
-        TRIVIAL_SUBDOMAINS=TRIVIAL_SUBDOMAINS,
-        COMMON_TLDS=COMMON_TLDS,
+        ENTROPY_THRESHOLD=config.entropy_threshold,
+        SUBDOMAIN_THRESHOLD=config.subdomain_threshold,
+        MAX_PATH_DEPTH=config.max_path_depth,
+        THRESHOLD_YOUNG=config.threshold_young,
+        THRESHOLD_EXPIRING=config.threshold_expiring,
+        CERT_RECENT_ISSUE_DAYS_THRESHOLD=config.cert_recent_issue_days_threshold,
+        HYPHEN_THRESHOLD=config.hyphen_threshold,
+        SUSPICIOUS_TLDS=config.suspicious_tlds,
+        SHORTENERS=config.shorteners,
+        ABUSABLE_PLATFORM_DOMAINS=config.abusable_platform_domains,
+        TRIVIAL_SUBDOMAINS=config.trivial_subdomains,
+        COMMON_TLDS=config.common_tlds,
     )
 
 
-def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuristics:
-    config = _build_config()
+def _build_analyzer(
+    config: Config,
+    enrich=None,
+    redirect_service=None,
+    cache=None,
+) -> LinkHeuristics:
+    link_config = _build_config(config)
     enrich = enrich or []
 
     vt_lookup = whois_lookup = redirect_lookup = ssl_fetcher = None
@@ -52,13 +39,17 @@ def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuri
     if "virustotal" in enrich or "all" in enrich:
         from phishsage.services.virustotal import VirusTotalService
 
-        vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
+        vt_service = VirusTotalService(
+            api_key=config.virustotal_api_key, cache_ttl=config.cache_ttl_vt
+        )
         vt_lookup = partial(vt_service.lookup_url, cache=cache)
 
     if "domain_age" in enrich or "all" in enrich:
         from phishsage.services.whois import WhoisService
 
-        whois_lookup = partial(WhoisService().lookup, cache=cache)
+        whois_lookup = partial(
+            WhoisService(cache_ttl=config.cache_ttl_whois).lookup, cache=cache
+        )
 
     if redirect_service and ("redirects" in enrich or "all" in enrich):
         redirect_lookup = partial(redirect_service.resolve, cache=cache)
@@ -66,10 +57,15 @@ def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuri
     if "certificate" in enrich or "all" in enrich:
         from phishsage.services.cert_checker import SSLService
 
-        ssl_fetcher = partial(SSLService(port=SSL_DEFAULT_PORT).fetch, cache=cache)
+        ssl_fetcher = partial(
+            SSLService(
+                port=config.ssl_default_port, cache_ttl=config.cache_ttl_ssl
+            ).fetch,
+            cache=cache,
+        )
 
     return LinkHeuristics(
-        config=config,
+        config=link_config,
         vt_lookup=vt_lookup,
         whois_lookup=whois_lookup,
         redirect_lookup=redirect_lookup,
@@ -78,10 +74,12 @@ def _build_analyzer(enrich=None, redirect_service=None, cache=None) -> LinkHeuri
     )
 
 
-async def _vt_scan(web_urls, cache):
+async def _vt_scan(web_urls, cache, config: Config):
     from phishsage.services.virustotal import VirusTotalService
 
-    vt_service = VirusTotalService(api_key=VIRUSTOTAL_API_KEY)
+    vt_service = VirusTotalService(
+        api_key=config.virustotal_api_key, cache_ttl=config.cache_ttl_vt
+    )
     analyzer = LinkHeuristics(
         config=None, vt_lookup=partial(vt_service.lookup_url, cache=cache)
     )
@@ -100,8 +98,7 @@ async def _vt_scan(web_urls, cache):
                 "first_submission_date": None,
             }
         else:
-            parseable.append((url,parsed))
-            
+            parseable.append((url, parsed))
 
     tasks = [analyzer.scan_virustotal(p) for _, p in parseable]
     vt_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -135,16 +132,19 @@ async def _vt_scan(web_urls, cache):
     return vt_dict
 
 
-
-async def _follow_redirects(web_urls, cache):
+async def _follow_redirects(web_urls, cache, config: Config):
     from phishsage.services.redirect import RedirectService
 
     async with aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(
-            total=HTTP_TOTAL_TIMEOUT, connect=HTTP_CONNECT_TIMEOUT
+            total=config.http_total_timeout, connect=config.http_connect_timeout
         )
     ) as session:
-        redirect_service = RedirectService(session=session, max_redirects=MAX_REDIRECTS)
+        redirect_service = RedirectService(
+            session=session,
+            max_redirects=config.max_redirects,
+            cache_ttl=config.cache_ttl_redirect,
+        )
 
         analyzer = LinkHeuristics(
             config=None, redirect_lookup=partial(redirect_service.resolve, cache=cache)
@@ -212,7 +212,7 @@ async def _follow_redirects(web_urls, cache):
     return redirect_results
 
 
-async def _run_heuristics(web_urls, enrich, cache):
+async def _run_heuristics(web_urls, enrich, cache, config: Config):
     session = None
     redirect_service = None
     enrich = enrich or []
@@ -223,15 +223,21 @@ async def _run_heuristics(web_urls, enrich, cache):
 
             session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(
-                    total=HTTP_TOTAL_TIMEOUT, connect=HTTP_CONNECT_TIMEOUT
+                    total=config.http_total_timeout,
+                    connect=config.http_connect_timeout,
                 )
             )
             redirect_service = RedirectService(
-                session=session, max_redirects=MAX_REDIRECTS
+                session=session,
+                max_redirects=config.max_redirects,
+                cache_ttl=config.cache_ttl_redirect,
             )
 
         analyzer = _build_analyzer(
-            enrich=enrich, redirect_service=redirect_service, cache=cache
+            config=config,
+            enrich=enrich,
+            redirect_service=redirect_service,
+            cache=cache,
         )
         return await analyzer.run_link_heuristics(web_urls)
 
@@ -240,7 +246,7 @@ async def _run_heuristics(web_urls, enrich, cache):
             await session.close()
 
 
-async def handle_links(args, mail, cache=None):
+async def handle_links(args, mail, cache=None, config: Config = None):
     links = extract_links(mail.body or "")
     if not links:
         return {"error": "No URLs found in the email"}
@@ -268,17 +274,17 @@ async def handle_links(args, mail, cache=None):
 
     if args.vt_scan:
         json_output.setdefault("analysis", {})["virustotal"] = await _vt_scan(
-            web_urls, cache
+            web_urls, cache, config
         )
 
     if args.check_redirects:
         json_output.setdefault("analysis", {})["redirects"] = await _follow_redirects(
-            web_urls, cache
+            web_urls, cache, config
         )
 
     if args.heuristics:
         json_output.setdefault("analysis", {})["heuristics"] = await _run_heuristics(
-            web_urls, args.enrich, cache
+            web_urls, args.enrich, cache, config
         )
 
     return json_output

@@ -2,84 +2,75 @@ import os
 import tomllib
 from pathlib import Path
 
-# Path to config.toml inside the package
-CONFIG_FILE = Path(__file__).resolve().parent / "config.toml"
+from phishsage.config.object import Config
+
+DEFAULT_CONFIG = Path(__file__).resolve().parent / "config.toml"
 
 
-def load_toml():
-    """Load and parse the TOML config file."""
+def _load_toml(path: Path) -> dict:
+    path = Path(path)
     try:
-        with CONFIG_FILE.open("rb") as f:
+        with path.open("rb") as f:
             return tomllib.load(f)
     except FileNotFoundError:
-        raise RuntimeError(f"Config file not found: {CONFIG_FILE}")
+        raise RuntimeError(f"Config file not found: {path}")
     except tomllib.TOMLDecodeError as e:
-        raise RuntimeError(f"Invalid TOML in {CONFIG_FILE}: {e}")
+        raise RuntimeError(f"Invalid TOML in {path}: {e}")
 
 
-# Load TOML contents
-raw = load_toml()
+def _deep_merge(base: dict, override: dict) -> dict:
+    out = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            out[key] = _deep_merge(base[key], value)
+        else:
+            out[key] = value
+    return out
 
 
-# -------------------------------
-#  API CONFIG
-# -------------------------------
-api = raw.get("api", {})
+def load_config(path: Path | str | None = None) -> Config:
 
-API_CONFIG = {
-    "virustotal_api_key": os.getenv(
-        "VIRUSTOTAL_API_KEY", api.get("virustotal_api_key", "")
+    if not DEFAULT_CONFIG.exists():
+        raise RuntimeError(f"Packaged config missing: {DEFAULT_CONFIG}")
+
+    base = _load_toml(DEFAULT_CONFIG)
+    override = _load_toml(path) if path is not None else {}
+    raw = _deep_merge(base, override)
+
+    api = raw.get("api", {})
+    heur = raw.get("heuristics", {})
+    net = raw.get("network", {})
+    cache = raw.get("cache", {})
+
+    return Config(
+        virustotal_api_key=os.getenv(
+            "VIRUSTOTAL_API_KEY", api.get("virustotal_api_key", "")
+        ),
+        suspicious_tlds=set(heur.get("suspicious_tlds", [])),
+        shorteners=set(heur.get("shorteners", [])),
+        free_email_domains=set(heur.get("free_email_domains", [])),
+        trivial_subdomains=set(heur.get("trivial_subdomains", [])),
+        abusable_platform_domains=set(heur.get("abusable_platform_domains", [])),
+        common_tlds=set(heur.get("common_tlds", [])),
+        hyphen_threshold=heur.get("hyphen_threshold", 4),
+        subdomain_threshold=heur.get("subdomain_threshold", 3),
+        entropy_threshold=heur.get("entropy_threshold", 4),
+        max_path_depth=heur.get("max_path_depth", 4),
+        date_received_drift_minutes=heur.get("date_received_drift_minutes", 30),
+        max_redirects=heur.get("max_redirects", 10),
+        threshold_young=heur.get("threshold_young", 30),
+        threshold_expiring=heur.get("threshold_expiring", 10),
+        cert_recent_issue_days_threshold=heur.get(
+            "cert_recent_issue_days_threshold", 30
+        ),
+        ssl_default_port=heur.get("ssl_default_port", 443),
+        http_total_timeout=net.get("total_timeout", 30),
+        http_connect_timeout=net.get("connect_timeout", 5),
+        cache_dir=Path(os.path.expanduser(cache.get("dir", "~/.cache/phishsage"))),
+        cache_ttl_vt=cache.get("ttl_vt", 86400),
+        cache_ttl_whois=cache.get("ttl_whois", 604800),
+        cache_ttl_redirect=cache.get("ttl_redirect", 21600),
+        cache_ttl_ssl=cache.get("ttl_ssl", 43200),
+        cache_ttl_mx=cache.get("ttl_mx", 86400),
+        cache_ttl_spamhaus=cache.get("ttl_spamhaus", 3600),
     )
-}
-
-
-# -------------------------------
-#  HEURISTICS CONFIG
-# -------------------------------
-HEURISTICS = raw.get("heuristics", {})
-
-# Convert lists → sets for fast lookups
-SUSPICIOUS_TLDS = set(HEURISTICS.get("suspicious_tlds", []))
-SHORTENERS = set(HEURISTICS.get("shorteners", []))
-FREE_EMAIL_DOMAINS = set(HEURISTICS.get("free_email_domains", []))
-TRIVIAL_SUBDOMAINS = set(HEURISTICS.get("trivial_subdomains", []))
-ABUSABLE_PLATFORM_DOMAINS = set(HEURISTICS.get("abusable_platform_domains", []))
-COMMON_TLDS = set(HEURISTICS.get("common_tlds", []))
-
-
-HYPHEN_THRESHOLD = HEURISTICS.get("hyphen_threshold", 4)
-SUBDOMAIN_THRESHOLD = HEURISTICS.get("subdomain_threshold", 3)
-ENTROPY_THRESHOLD = HEURISTICS.get("entropy_threshold", 4)
-MAX_PATH_DEPTH = HEURISTICS.get("max_path_depth", 4)
-DATE_RECEIVED_DRIFT_MINUTES = HEURISTICS.get("date_received_drift_minutes", 30)
-MAX_REDIRECTS = HEURISTICS.get("max_redirects", 10)
-THRESHOLD_YOUNG = HEURISTICS.get("threshold_young", 30)
-THRESHOLD_EXPIRING = HEURISTICS.get("threshold_expiring", 10)
-VIRUSTOTAL_API_KEY = API_CONFIG["virustotal_api_key"]
-
-# Certificate analysis thresholds
-CERT_RECENT_ISSUE_DAYS_THRESHOLD = HEURISTICS.get(
-    "cert_recent_issue_days_threshold", 30
-)
-SSL_DEFAULT_PORT = HEURISTICS.get("ssl_default_port", 443)
-
-# -------------------------------
-#  NETWORK CONFIG
-# -------------------------------
-NETWORK = raw.get("network", {})
-
-HTTP_TOTAL_TIMEOUT = NETWORK.get("total_timeout", 30)
-HTTP_CONNECT_TIMEOUT = NETWORK.get("connect_timeout", 5)
-
-# -------------------------------
-#  CACHE CONFIG
-# -------------------------------
-CACHE = raw.get("cache", {})
-
-CACHE_DIR = Path(os.path.expanduser(CACHE.get("dir", "~/.cache/phishsage")))
-CACHE_TTL_VT = CACHE.get("ttl_vt", 86400)
-CACHE_TTL_WHOIS = CACHE.get("ttl_whois", 604800)
-CACHE_TTL_REDIRECT = CACHE.get("ttl_redirect", 21600)
-CACHE_TTL_SSL = CACHE.get("ttl_ssl", 43200)
-CACHE_TTL_MX = CACHE.get("ttl_mx", 86400)
-CACHE_TTL_SPAMHAUS = CACHE.get("ttl_spamhaus", 3600)

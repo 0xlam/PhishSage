@@ -6,6 +6,7 @@ import mailparser
 from phishsage.utils import get_parser
 from phishsage.outputs.writer import OutputWriter
 from phishsage.parsers import extract_mail_headers
+from phishsage.config.loader import load_config
 
 from phishsage.outputs.printer import (
     print_warning,
@@ -102,7 +103,7 @@ def validate_args(args, parser):
 
 
 def deduplicate_files(files):
-    absolute_paths = [abspath(f) for f in files ]
+    absolute_paths = [abspath(f) for f in files]
 
     seen = set()
     duplicates = []
@@ -119,16 +120,16 @@ def deduplicate_files(files):
     return list(dict.fromkeys(absolute_paths))
 
 
-def initialize_cache(args):
+def initialize_cache(args, config):
     if not args.cache:
         return None
 
     from phishsage.utils.cache import get_cache
 
-    return get_cache(args.cache_dir)
+    return get_cache(args.cache_dir, config=config)
 
 
-def process_file(filepath, args, cache):
+def process_file(filepath, args, cache, config):
     try:
         with open(filepath, "rb") as f:
             raw_mail_bytes = f.read()
@@ -136,28 +137,30 @@ def process_file(filepath, args, cache):
         parsed_mail = mailparser.parse_from_bytes(raw_mail_bytes)
         mail_headers = extract_mail_headers(parsed_mail, raw_mail_bytes)
 
-        return asyncio.run(run(args, parsed_mail, mail_headers, cache=cache))
+        return asyncio.run(
+            run(args, parsed_mail, mail_headers, cache=cache, config=config)
+        )
 
     except Exception as e:
         logging.exception("Failed to process %s", filepath)
         return {"error": f"Failed to process {filepath}: {e}"}
 
 
-async def run(args, mail, mail_headers, cache=None):
+async def run(args, mail, mail_headers, cache=None, config=None):
     if args.mode == "attachments":
         from phishsage.handlers.attachments import handle_attachments
 
-        return await handle_attachments(args, mail, cache=cache)
+        return await handle_attachments(args, mail, cache=cache, config=config)
 
     elif args.mode == "links":
         from phishsage.handlers.links import handle_links
 
-        return await handle_links(args, mail, cache=cache)
+        return await handle_links(args, mail, cache=cache, config=config)
 
     elif args.mode == "headers":
         from phishsage.handlers.headers import handle_headers
 
-        return await handle_headers(args, mail_headers, cache=cache)
+        return await handle_headers(args, mail_headers, cache=cache, config=config)
 
     else:
         print_error(f"Unknown mode: {args.mode}")
@@ -167,11 +170,12 @@ async def run(args, mail, mail_headers, cache=None):
 def main():
     parser = get_parser()
     args = parser.parse_args()
-
     validate_args(args, parser)
-    args.file = deduplicate_files(args.file)
 
-    cache = initialize_cache(args)
+    config = load_config(args.config)
+
+    args.file = deduplicate_files(args.file)
+    cache = initialize_cache(args, config)
 
     writer = (
         OutputWriter(args.output, default_serializer=default_serializer)
@@ -181,7 +185,7 @@ def main():
 
     try:
         for filepath in args.file:
-            output = process_file(filepath, args, cache)
+            output = process_file(filepath, args, cache, config)
 
             if args.json:
                 writer.write(filepath, output)

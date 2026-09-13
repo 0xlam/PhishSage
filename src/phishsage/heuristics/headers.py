@@ -7,7 +7,6 @@ import aiodns
 from phishsage.config.schemas import HeaderHeuristicConfig
 from phishsage.models.results import HeaderHeuristicResult
 from phishsage.utils import is_domain_match, earliest_received_date
-from phishsage.config.loader import CACHE_TTL_MX, CACHE_TTL_SPAMHAUS
 
 
 class HeaderHeuristics:
@@ -545,7 +544,7 @@ class HeaderHeuristics:
 
         if self.cache is not None and not result.get("error"):
             try:
-                self.cache.set(key, final, expire=CACHE_TTL_MX)
+                self.cache.set(key, final, expire=self.config.CACHE_TTL_MX)
             except Exception:
                 pass
 
@@ -613,7 +612,7 @@ class HeaderHeuristics:
 
         if self.cache is not None and not entry.get("error"):
             try:
-                self.cache.set(key, final, expire=CACHE_TTL_SPAMHAUS)
+                self.cache.set(key, final, expire=self.config.CACHE_TTL_SPAMHAUS)
             except Exception:
                 pass
 

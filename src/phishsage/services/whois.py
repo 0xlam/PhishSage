@@ -5,11 +5,13 @@ from datetime import datetime, timezone
 from dateutil import parser
 import whois
 
-from phishsage.config.loader import CACHE_TTL_WHOIS
 from phishsage.models.whois import WhoisResult
 
 
 class WhoisService:
+    def __init__(self, cache_ttl: int = 604800):
+        self.cache_ttl = cache_ttl
+
     async def lookup(self, domain: str, cache=None) -> WhoisResult:
         key = f"whois:{domain}"
 
@@ -25,7 +27,7 @@ class WhoisService:
 
         if cache is not None:
             try:
-                cache.set(key, dataclasses.asdict(result), expire=CACHE_TTL_WHOIS)
+                cache.set(key, dataclasses.asdict(result), expire=self.cache_ttl)
             except Exception:
                 pass
 

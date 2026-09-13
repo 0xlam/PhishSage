@@ -8,7 +8,8 @@ class HeaderHeuristicConfig:
     THRESHOLD_EXPIRING: int
 
     FREE_EMAIL_DOMAINS: set = field(default_factory=set)
-
+    CACHE_TTL_MX: int = 86400
+    CACHE_TTL_SPAMHAUS: int = 3600
 
 
 @dataclass

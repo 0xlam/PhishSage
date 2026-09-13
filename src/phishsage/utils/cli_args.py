@@ -39,6 +39,12 @@ def get_parser():
         help="Custom cache directory (use with --cache)",
     )
 
+    common.add_argument(
+        "--config",
+        metavar="TOML",
+        help="Override config file (merged over the packaged default config.toml)",
+    )
+
     # ---- SUBCOMMANDS ----
     subparsers = parser.add_subparsers(dest="mode", required=True)
 
