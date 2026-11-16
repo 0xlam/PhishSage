@@ -15,7 +15,7 @@ PhishSage covers three analysis surfaces, each a CLI subcommand:
 
 **`headers`**: SPF/DKIM/DMARC extraction and alignment checks, Reply-To/Return-Path anomalies, Message-ID domain validation, free-provider detection, timestamp drift between `Date` and `Received`, optional MX record lookup, Spamhaus DBL query, and WHOIS domain-age flagging.
 
-**`links`**: URL extraction from body and headers, raw-IP URL detection, suspicious/uncommon TLD flagging, subdomain depth and entropy scoring (detects randomly generated domains), shortened-URL detection, free hosting platform detection, SSL/TLS certificate inspection, WHOIS domain age, VirusTotal URL lookup, redirect-chain tracing, path-depth analysis, hyphen-abuse detection, and embedded fake-TLD detection.
+**`links`**: URL extraction from email bodies, with heuristic analysis covering IP-based URLs, suspicious TLDs, embedded fake-TLDs, domain entropy, URL shorteners, and abusable hosting platforms. Optional enrichment includes SSL/TLS certificate inspection, WHOIS domain-age lookup, VirusTotal URL scanning, and redirect-chain tracing.
 
 **`attachments`**: Listing with MIME type and size, safe attachment extraction, MD5/SHA1/SHA256 hashing, VirusTotal hash lookup, and YARA rule scanning with optional verbose string/offset output.
 
@@ -204,7 +204,7 @@ Example `custom.toml`:
 
 ```toml
 [heuristics]
-hyphen_threshold = 2
+entropy_threshold = 4.0
 
 [network]
 total_timeout = 60
@@ -219,12 +219,9 @@ The packaged default file lives at `src/phishsage/config/config.toml`. Copy it a
 
 | Key | Default | Purpose |
 |-----|---------|---------|
-| `hyphen_threshold` | `4` | Max hyphens in hostname before flagging hyphen abuse |
 | `threshold_young` | `30` days | Flag newly registered domains |
 | `threshold_expiring` | `10` days | Flag soon-to-expire domains |
-| `entropy_threshold` | `4.0` | Entropy cutoff for flagging randomly generated domain labels |
-| `subdomain_threshold` | `3` | Max non-trivial subdomain labels before flagging |
-| `max_path_depth` | `4` | URL path depth limit |
+| `entropy_threshold` | `4.0` | Entropy threshold for identifying potentially random-looking domain labels |
 | `date_received_drift_minutes` | `30` | Max drift between `Date` and first `Received` hop |
 | `max_redirects` | `10` | Redirect-chain follow limit |
 | `cert_recent_issue_days_threshold` | `30` | Flag recently issued certificates |
@@ -245,9 +242,9 @@ The packaged default file lives at `src/phishsage/config/config.toml`. Copy it a
 ## Scope & limitations
 
 - **Triage tool, not a mail gateway.** Not designed for inline enforcement or production email filtering.
-- **Network-dependent enrichment.** WHOIS, DNS, VirusTotal, and SSL checks require connectivity and may hit rate limits.
+- **Network-dependent enrichment.** WHOIS, DNS, VirusTotal, redirect tracing, and SSL checks require network connectivity and may encounter rate limits or unavailable services.
 - **Attachment coverage.** Attachment analysis currently covers listing, extraction, hashing, VirusTotal hash lookup, and YARA scanning. Deeper content inspection is planned.
-- **False positives.** Default thresholds are set strictly and may produce false positives depending on your environment. Use `--config` to override them as needed.
+- **Heuristic limitations:** Heuristic findings are indicators for investigation, not definitive verdicts. Characteristics such as high domain entropy, suspicious TLDs, and the use of hosting platforms can also occur in legitimate URLs. Findings should therefore be evaluated in context rather than treated as standalone evidence of phishing.
 - **Cached enrichment may become stale.** Use `--cache-dir` to isolate cache data per investigation, or clear the cache when fresh lookups are required.
 
 ---
