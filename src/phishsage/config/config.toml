@@ -76,30 +76,12 @@ abusable_platform_domains = [
 ]
 
 
-# Threshold for excessive suspicious subdomains: counts non-trivial, non-digit-heavy labels (>2 characters)
-subdomain_threshold = 3
-
-# Shannon entropy threshold for flagging randomly generated domain/subdomain labels 
+# Shannon entropy threshold for identifying potentially random-looking domain and subdomain labels.
 entropy_threshold = 4.0
 
 
-# Known benign/trivial subdomains to ignore when counting suspicious ones
-trivial_subdomains = [
-    'www', 'm', 'mail', 'webmail', 'cdn', 'static', 'assets',
-    'api', 'dev', 'staging', 'stage', 'test', 'beta', 'uat',
-    'blog', 'shop', 'cpanel', 'whm', 'img', 'images', 'media',
-    'files', 'portal', 'help', 'support', 'docs', 'link', 'links',
-    'email', 'smtp', 'mx', 'tracking', 'track', 'ftp', 'mobile',
-    'origin', 'edge', 'cache', 'storage', 'download', 'uploads',
-    'status', 'proxy', 'git', 'ci', 'jenkins'
-]
-
 # TLD strings users visually trust, checked for embedded decoys (e.g. paypal.com-login.xyz)
 common_tlds = ['com', 'net', 'org', 'gov', 'edu', 'mil', 'io']
-
-
-# Threshold for suspicious URL path depth
-max_path_depth = 4
 
 
 # Maximum allowed difference between Date header and first Received timestamp.
@@ -113,9 +95,6 @@ threshold_young = 30      # Domains younger than this are considered "young" and
 
 threshold_expiring = 10  # Domains expiring in fewer than this many days are flagged as expiring soon
 
-
-# Flag domain/subdomain labels with this many or more hyphens
-hyphen_threshold = 4
 
 # -----------------------------------------
 # Certificate Analysis Thresholds

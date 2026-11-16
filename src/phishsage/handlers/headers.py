@@ -4,23 +4,10 @@ import aiodns
 from phishsage.heuristics.headers import HeaderHeuristics
 from phishsage.services.whois import WhoisService
 from phishsage.config.object import Config
-from phishsage.config.schemas import HeaderHeuristicConfig
-
-
-def _build_header_config(config: Config) -> HeaderHeuristicConfig:
-    return HeaderHeuristicConfig(
-        DATE_RECEIVED_DRIFT_MINUTES=config.date_received_drift_minutes,
-        THRESHOLD_YOUNG=config.threshold_young,
-        THRESHOLD_EXPIRING=config.threshold_expiring,
-        FREE_EMAIL_DOMAINS=config.free_email_domains,
-        CACHE_TTL_MX=config.cache_ttl_mx,
-        CACHE_TTL_SPAMHAUS=config.cache_ttl_spamhaus,
-    )
 
 
 async def handle_headers(args, headers, cache=None, config: Config = None):
     if args.heuristics:
-        header_config = _build_header_config(config)
         enrich = args.enrich or []
 
         if "all" in enrich:
@@ -38,7 +25,7 @@ async def handle_headers(args, headers, cache=None, config: Config = None):
             dns_resolver = aiodns.DNSResolver()
 
         checker = HeaderHeuristics(
-            config=header_config,
+            config=config,
             whois_lookup=whois_lookup,
             dns_resolver=dns_resolver,
             cache=cache,

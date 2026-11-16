@@ -4,7 +4,7 @@ from datetime import timedelta, timezone
 from dateutil import parser
 
 import aiodns
-from phishsage.config.schemas import HeaderHeuristicConfig
+from phishsage.config.object import Config
 from phishsage.models.results import HeaderHeuristicResult
 from phishsage.utils import is_domain_match, earliest_received_date
 
@@ -13,7 +13,7 @@ class HeaderHeuristics:
 
     def __init__(
         self,
-        config: HeaderHeuristicConfig,
+        config: Config,
         whois_lookup=None,
         dns_resolver=None,
         cache=None,
@@ -235,7 +235,7 @@ class HeaderHeuristics:
             "return_path_is_free": False,
         }
 
-        free = self.config.FREE_EMAIL_DOMAINS
+        free = self.config.free_email_domains
 
         if from_domain:
             result["from_is_free"] = from_domain.lower() in free
@@ -285,7 +285,7 @@ class HeaderHeuristics:
         alerts = []
         date_header = headers.date
         first_received_header = earliest_received_date(headers.received_chain)
-        drift_minutes = self.config.DATE_RECEIVED_DRIFT_MINUTES
+        drift_minutes = self.config.date_received_drift_minutes
 
         meta = {
             "date_header": date_header,
@@ -377,7 +377,7 @@ class HeaderHeuristics:
             entry["age_days"] = w.age_days
             entry["expiry_days_left"] = w.expiry_days
 
-            if w.age_days is not None and w.age_days < self.config.THRESHOLD_YOUNG:
+            if w.age_days is not None and w.age_days < self.config.threshold_young:
                 alerts.append(
                     {
                         "type": "YOUNG_DOMAIN",
@@ -387,7 +387,7 @@ class HeaderHeuristics:
 
             if (
                 w.expiry_days is not None
-                and w.expiry_days <= self.config.THRESHOLD_EXPIRING
+                and w.expiry_days <= self.config.threshold_expiring
             ):
                 alerts.append(
                     {
@@ -544,7 +544,7 @@ class HeaderHeuristics:
 
         if self.cache is not None and not result.get("error"):
             try:
-                self.cache.set(key, final, expire=self.config.CACHE_TTL_MX)
+                self.cache.set(key, final, expire=self.config.cache_ttl_mx)
             except Exception:
                 pass
 
@@ -612,7 +612,7 @@ class HeaderHeuristics:
 
         if self.cache is not None and not entry.get("error"):
             try:
-                self.cache.set(key, final, expire=self.config.CACHE_TTL_SPAMHAUS)
+                self.cache.set(key, final, expire=self.config.cache_ttl_spamhaus)
             except Exception:
                 pass
 
