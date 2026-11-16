@@ -9,7 +9,6 @@ except ImportError as exc:
 import dataclasses
 from phishsage.models.virustotal import VirusTotalResult, VirusTotalStats
 
-_SKIP_CACHE = {"auth_error", "rate_limited", "not_found"}
 
 
 class VirusTotalService:
@@ -48,7 +47,7 @@ class VirusTotalService:
 
         result = await self._live_lookup(resource, resource_type)
 
-        if cache is not None and result.status not in _SKIP_CACHE:
+        if cache is not None and result.status == "ok":
             try:
                 cache.set(key, dataclasses.asdict(result), expire=self.cache_ttl)
             except Exception:

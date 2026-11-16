@@ -34,7 +34,7 @@ class WhoisService:
         return result
 
     async def _live_lookup(self, domain: str) -> WhoisResult:
-        raw = await asyncio.to_thread(whois.whois, domain)
+        raw = await asyncio.to_thread(whois.whois, domain, ignore_socket_errors=False)
 
         created = self._normalize_date(raw.creation_date)
         expires = self._normalize_date(raw.expiration_date)

@@ -3,8 +3,6 @@ import asyncio
 import dataclasses
 from phishsage.models.redirect import RedirectResult
 
-_SKIP_CACHE = {0}  # timeouts and connection failures
-
 
 class RedirectService:
     def __init__(
@@ -27,7 +25,7 @@ class RedirectService:
 
         result = await self._live_resolve(url)
 
-        if cache is not None and result.final_status not in _SKIP_CACHE:
+        if cache is not None and result.final_status != 0:
             try:
                 cache.set(key, dataclasses.asdict(result), expire=self.cache_ttl)
             except Exception:
@@ -56,8 +54,8 @@ class RedirectService:
                     status_codes=statuses,
                     final_url=response.url.human_repr(),
                     final_status=response.status,
-                    redirect_count=len(chain) - 1,
-                    redirected=len(chain) > 1,
+                    redirect_count=len(history),
+                    redirected=bool(history),
                 )
         except aiohttp.TooManyRedirects:
             return RedirectResult(
@@ -68,14 +66,4 @@ class RedirectService:
                 final_status=0,
                 redirect_count=self.max_redirects,
                 redirected=True,
-            )
-        except (asyncio.TimeoutError, aiohttp.ClientError):
-            return RedirectResult(
-                original_url=url,
-                chain=[],
-                status_codes=[],
-                final_url="",
-                final_status=0,
-                redirect_count=0,
-                redirected=False,
             )
