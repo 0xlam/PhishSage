@@ -46,23 +46,22 @@ def print_rich_output(args, filepath, output):
         return
 
     if args.mode == "links":
-        analysis = output.get("analysis", {})
 
         # URL extraction
-        if args.extract and "urls" in analysis:
-            print_url_extraction(analysis["urls"])
+        if args.extract and "urls" in output:
+            print_url_extraction(output["urls"])
 
         # VirusTotal
-        if args.vt_scan and "virustotal" in analysis:
-            print_vt_scan_links(analysis["virustotal"])
+        if args.vt_scan and "virustotal" in output:
+            print_vt_scan_links(output["virustotal"])
 
         # Redirect chain
-        if args.check_redirects and "redirects" in analysis:
-            print_redirect_chain(analysis["redirects"])
+        if args.check_redirects and "redirects" in output:
+            print_redirect_chain(output["redirects"])
 
         # Heuristics
-        if args.heuristics and "heuristics" in analysis:
-            print_link_heuristics(analysis["heuristics"])
+        if args.heuristics and "heuristics" in output:
+            print_link_heuristics(output["heuristics"])
 
         return
 
